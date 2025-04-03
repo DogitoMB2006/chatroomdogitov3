@@ -64,7 +64,7 @@ export default function Chats() {
 
     return () => unsub();
   }, [userData]);
-
+  
   // Obtener solicitudes de amistad pendientes
   useEffect(() => {
     if (!userData) return;
@@ -408,7 +408,7 @@ export default function Chats() {
             )}
           </div>
         )}
-
+ 
         {selectedTab === "groups" && (
           <div className="p-2 space-y-1">
             {filteredGroups.length > 0 ? (
