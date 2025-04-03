@@ -94,16 +94,31 @@ export default function AddFriend() {
             </button>
 
             {foundUser && (
-              <div className="mt-4 bg-gray-100 p-3 rounded flex justify-between items-center">
-                <span>{foundUser.username}</span>
-                <button
-                  onClick={sendRequest}
-                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
-                >
-                  Enviar solicitud
-                </button>
-              </div>
-            )}
+  <div className="mt-4 bg-gray-100 p-3 rounded flex items-center justify-between gap-4">
+    {/* Foto de perfil */}
+    <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-300 flex-shrink-0">
+      {foundUser.photoURL ? (
+        <img src={foundUser.photoURL} alt="avatar" className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-sm text-gray-500">
+          😶
+        </div>
+      )}
+    </div>
+
+    {/* Nombre y botón */}
+    <div className="flex justify-between items-center w-full">
+      <span className="font-medium">{foundUser.username}</span>
+      <button
+        onClick={sendRequest}
+        className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+      >
+        Enviar solicitud
+      </button>
+    </div>
+  </div>
+)}
+
 
             {message && <p className="mt-3 text-center text-sm text-gray-600">{message}</p>}
 
