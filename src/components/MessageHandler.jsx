@@ -1,6 +1,6 @@
 import { useEffect, useState, useContext, useRef } from "react";
 import { AuthContext } from "../context/AuthContext";
-import { db } from "../firebase/config";
+import { db, storage } from "../firebase/config";
 import {
   collection,
   query,
@@ -11,16 +11,26 @@ import {
   onSnapshot,
   updateDoc,
   doc,
-  getDocs
+  getDocs,
+  deleteDoc
 } from "firebase/firestore";
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject
+} from "firebase/storage";
 import { format } from "date-fns";
+import { MdImage } from "react-icons/md";
 
 export default function MessageHandler({ receiver }) {
   const { userData } = useContext(AuthContext);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
-  const scrollRef = useRef();
+  const [image, setImage] = useState(null);
   const [receiverData, setReceiverData] = useState(null);
+  const [previewImage, setPreviewImage] = useState(null);
+  const scrollRef = useRef();
 
   useEffect(() => {
     const getReceiverData = async () => {
@@ -58,7 +68,7 @@ export default function MessageHandler({ receiver }) {
           if (data.to === userData.username && !data.read) {
             await updateDoc(doc(db, "messages", docSnap.id), { read: true });
           }
-          filtered.push(data);
+          filtered.push({ ...data, id: docSnap.id });
         }
       }
 
@@ -69,18 +79,28 @@ export default function MessageHandler({ receiver }) {
   }, [userData, receiver]);
 
   const sendMessage = async () => {
-    if (text.trim() === '') return;
+    if (text.trim() === '' && !image) return;
+
+    let imageUrl = null;
+
+    if (image) {
+      const imageRef = ref(storage, `chatImages/${Date.now()}-${image.name}`);
+      await uploadBytes(imageRef, image);
+      imageUrl = await getDownloadURL(imageRef);
+    }
 
     await addDoc(collection(db, "messages"), {
       from: userData.username,
       to: receiver,
       text: text.trim(),
+      image: imageUrl,
       timestamp: serverTimestamp(),
       participants: [userData.username, receiver],
       read: false
     });
 
     setText('');
+    setImage(null);
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
@@ -88,18 +108,46 @@ export default function MessageHandler({ receiver }) {
     if (e.key === 'Enter') sendMessage();
   };
 
+  const handleDelete = async (msg) => {
+    const confirm = window.confirm("¿Eliminar este mensaje con imagen?");
+    if (!confirm) return;
+
+    try {
+      if (msg.image) {
+        const imagePath = decodeURIComponent(new URL(msg.image).pathname.split("/o/")[1]);
+        const imageRef = ref(storage, imagePath);
+        await deleteObject(imageRef);
+      }
+      await deleteDoc(doc(db, "messages", msg.id));
+    } catch (err) {
+      alert("Error al eliminar imagen: " + err.message);
+    }
+  };
+
   return (
     <div className="flex flex-col h-[60vh] max-w-xl mx-auto bg-white shadow rounded">
+      {/* Modal de vista previa */}
+      {previewImage && (
+        <div
+          onClick={() => setPreviewImage(null)}
+          className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
+        >
+          <img
+            src={previewImage}
+            alt="Vista previa"
+            className="max-w-[90%] max-h-[90%] rounded shadow-lg"
+          />
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.map((msg, idx) => {
           const isMine = msg.from === userData.username;
-          const photoURL = isMine
-            ? userData?.photoURL
-            : receiverData?.photoURL;
+          const photoURL = isMine ? userData?.photoURL : receiverData?.photoURL;
 
           return (
             <div
-              key={idx}
+              key={msg.id || idx}
               className={`flex items-end gap-2 ${
                 isMine ? 'justify-end' : 'justify-start'
               }`}
@@ -115,30 +163,50 @@ export default function MessageHandler({ receiver }) {
               )}
 
               <div
-                className={`max-w-[75%] px-3 py-2 rounded-lg relative
+                className={`max-w-[75%] px-3 py-2 rounded-lg relative group
                   ${isMine
                     ? 'bg-blue-500 text-white'
                     : 'bg-gray-200 text-black'
                   }`}
               >
-                {/* Texto con links detectado */}
-                <p className="break-words">
-                  {msg.text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
-                    part.match(/^https?:\/\/[^\s]+$/) ? (
-                      <a
-                        key={i}
-                        href={part}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-300 underline"
+                {msg.image && (
+                  <div className="relative group">
+                    <img
+                      src={msg.image}
+                      alt="media"
+                      className="mb-2 rounded max-w-full max-h-48 border border-gray-300 cursor-pointer hover:brightness-90"
+                      onClick={() => setPreviewImage(msg.image)}
+                    />
+                    {isMine && (
+                      <button
+                        onClick={() => handleDelete(msg)}
+                        className="absolute top-1 right-1 bg-red-600 text-white text-xs px-1 rounded opacity-80 hover:opacity-100"
                       >
-                        {part}
-                      </a>
-                    ) : (
-                      <span key={i}>{part}</span>
-                    )
-                  )}
-                </p>
+                        🗑
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {msg.text && (
+                  <p className="break-words">
+                    {msg.text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+                      part.match(/^https?:\/\/[^\s]+$/) ? (
+                        <a
+                          key={i}
+                          href={part}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-300 underline"
+                        >
+                          {part}
+                        </a>
+                      ) : (
+                        <span key={i}>{part}</span>
+                      )
+                    )}
+                  </p>
+                )}
 
                 <span className="block text-[10px] mt-1 text-right opacity-70">
                   {msg.timestamp?.toDate ? format(msg.timestamp.toDate(), 'p') : '...'}
@@ -164,21 +232,46 @@ export default function MessageHandler({ receiver }) {
         <div ref={scrollRef}></div>
       </div>
 
-      <div className="border-t p-2 flex gap-2">
-        <input
-          type="text"
-          placeholder="Escribe un mensaje..."
-          className="flex-1 border rounded px-3 py-2"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-        />
-        <button
-          onClick={sendMessage}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-        >
-          Enviar
-        </button>
+      {/* Entrada de texto con ícono y botón */}
+      <div className="border-t p-2 flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          {/* Ícono de imagen */}
+          <label htmlFor="imageInput" className="text-blue-600 hover:text-blue-800 text-2xl cursor-pointer">
+            <MdImage title="Adjuntar imagen" />
+          </label>
+          <input
+            type="file"
+            id="imageInput"
+            accept="image/*"
+            onChange={(e) => setImage(e.target.files[0])}
+            className="hidden"
+          />
+
+          {/* Campo de texto */}
+          <input
+            type="text"
+            placeholder="Escribe un mensaje..."
+            className="flex-1 border rounded px-3 py-2"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+          />
+
+          {/* Botón enviar */}
+          <button
+            onClick={sendMessage}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+          >
+            Enviar
+          </button>
+        </div>
+
+        {/* Nombre de imagen seleccionada */}
+        {image && (
+          <p className="text-sm text-gray-500 mt-1">
+            Imagen seleccionada: <strong>{image.name}</strong>
+          </p>
+        )}
       </div>
     </div>
   );
