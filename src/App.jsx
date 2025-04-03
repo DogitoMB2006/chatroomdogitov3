@@ -13,11 +13,11 @@ import { ToastProvider } from "./context/ToastContext";
 export default function App() {
   useEffect(() => {
     const notifKey = "notificacionesAceptadas";
-
+  
     if (Notification.permission === "granted" || localStorage.getItem(notifKey)) {
       return;
     }
-
+  
     if (Notification.permission !== "denied") {
       const aceptar = confirm("¿Quieres habilitar notificaciones de mensajes?");
       if (aceptar) {
@@ -31,6 +31,7 @@ export default function App() {
       }
     }
   }, []);
+  
 
   return (
     <Router>

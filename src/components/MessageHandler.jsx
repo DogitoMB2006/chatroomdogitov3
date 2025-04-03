@@ -1,4 +1,4 @@
-// ... imports igual que antes
+// ... imports igual que ya tienes
 import { useEffect, useState, useContext, useRef } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { db, storage } from "../firebase/config";
@@ -22,7 +22,7 @@ import {
   deleteObject
 } from "firebase/storage";
 import { format } from "date-fns";
-import { MdImage } from "react-icons/md";
+import { MdImage, MdDelete } from "react-icons/md"; // Asegúrate de importar el ícono
 
 export default function MessageHandler({ receiver }) {
   const { userData } = useContext(AuthContext);
@@ -70,33 +70,17 @@ export default function MessageHandler({ receiver }) {
             await updateDoc(doc(db, "messages", docSnap.id), { read: true });
           }
 
-          // 👇 Aquí agregamos los logs de depuración
-          if (data.to === userData.username && data.from !== receiver) {
-            console.log("🔎 Estado para notificación:");
-            console.log("➡️ Es mensaje de otra persona:", data.from !== receiver);
-            console.log("➡️ Es para mí:", data.to === userData.username);
-            console.log("➡️ Permiso:", Notification.permission);
-            console.log("➡️ Visibilidad:", document.visibilityState);
-          }
-
-          if (
-            data.from !== receiver &&
-            data.to === userData.username &&
-            Notification.permission === "granted" &&
-            document.visibilityState === "visible"
-          ) {
-            console.log("📢 Mostrando notificación de:", data.from, data.text);
-            new Notification(`Mensaje de ${data.from}`, {
-              body: data.text || "📷 Imagen",
-              icon: "/logo192.png"
-            });
-          }
-
           filtered.push({ ...data, id: docSnap.id });
         }
       }
 
       setMessages(filtered);
+
+// Auto-scroll al último mensaje al cargar
+setTimeout(() => {
+  scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+}, 100);
+
     });
 
     return () => unsub();
@@ -133,7 +117,7 @@ export default function MessageHandler({ receiver }) {
   };
 
   const handleDelete = async (msg) => {
-    const confirm = window.confirm("¿Eliminar este mensaje con imagen?");
+    const confirm = window.confirm("¿Eliminar este mensaje?");
     if (!confirm) return;
 
     try {
@@ -144,13 +128,12 @@ export default function MessageHandler({ receiver }) {
       }
       await deleteDoc(doc(db, "messages", msg.id));
     } catch (err) {
-      alert("Error al eliminar imagen: " + err.message);
+      alert("Error al eliminar mensaje: " + err.message);
     }
   };
 
   return (
     <div className="flex flex-col h-[60vh] max-w-xl mx-auto bg-white shadow rounded">
-      {/* Modal de vista previa */}
       {previewImage && (
         <div
           onClick={() => setPreviewImage(null)}
@@ -193,27 +176,26 @@ export default function MessageHandler({ receiver }) {
                     : 'bg-gray-200 text-black'
                   }`}
               >
-                {/* Imagen si hay */}
-                {msg.image && (
-                  <div className="relative group">
-                    <img
-                      src={msg.image}
-                      alt="media"
-                      className="mb-2 rounded max-w-full max-h-48 border border-gray-300 cursor-pointer hover:brightness-90"
-                      onClick={() => setPreviewImage(msg.image)}
-                    />
-                    {isMine && (
-                      <button
-                        onClick={() => handleDelete(msg)}
-                        className="absolute top-1 right-1 bg-red-600 text-white text-xs px-1 rounded opacity-80 hover:opacity-100"
-                      >
-                        🗑
-                      </button>
-                    )}
-                  </div>
+                {/* Eliminar icono si soy yo */}
+                {isMine && (
+                  <button
+                    onClick={() => handleDelete(msg)}
+                    className="absolute top-1 right-1 text-white text-sm bg-red-500 hover:bg-red-700 p-1 rounded-full opacity-0 group-hover:opacity-100 transition"
+                    title="Eliminar mensaje"
+                  >
+                    <MdDelete />
+                  </button>
                 )}
 
-                {/* Texto con links */}
+                {msg.image && (
+                  <img
+                    src={msg.image}
+                    alt="media"
+                    className="mb-2 rounded max-w-full max-h-48 border border-gray-300 cursor-pointer hover:brightness-90"
+                    onClick={() => setPreviewImage(msg.image)}
+                  />
+                )}
+
                 {msg.text && (
                   <p className="break-words">
                     {msg.text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
@@ -258,7 +240,7 @@ export default function MessageHandler({ receiver }) {
         <div ref={scrollRef}></div>
       </div>
 
-      {/* Entrada de texto con ícono y botón */}
+      {/* Entrada de texto */}
       <div className="border-t p-2 flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <label htmlFor="imageInput" className="text-blue-600 hover:text-blue-800 text-2xl cursor-pointer">
