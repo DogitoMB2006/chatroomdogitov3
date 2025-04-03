@@ -1,127 +1,173 @@
-// utils/NotificationService.js - (Actualiza este archivo)
+// utils/NotificationService.js
 export const NotificationService = {
+  // Verificar si las notificaciones están soportadas
   isSupported() {
     return 'Notification' in window;
   },
-  
-  async requestPermission() {
-    console.log("Solicitando permiso para notificaciones...");
-    if (!this.isSupported()) {
-      console.warn('Las notificaciones no están soportadas en este navegador');
-      return false;
-    }
-    
-    try {
-      const permission = await Notification.requestPermission();
-      const granted = permission === 'granted';
-      
-      console.log(`Permiso de notificación: ${permission}`);
-      
-      if (granted) {
-        this.registerServiceWorker();
-      }
-      
-      return granted;
-    } catch (error) {
-      console.error("Error solicitando permiso:", error);
-      return false;
-    }
+
+  // Verificar si Service Workers están soportados
+  isServiceWorkerSupported() {
+    return 'serviceWorker' in navigator;
   },
-  
+
+  // Registrar el Service Worker
   async registerServiceWorker() {
-    if (!('serviceWorker' in navigator)) {
-      console.warn('Service Worker no soportado');
+    if (!this.isServiceWorkerSupported()) {
+      console.warn('Service Workers no están soportados en este navegador');
       return null;
     }
-    
+
     try {
-      console.log("Registrando Service Worker...");
-      const registration = await navigator.serviceWorker.register('/sw.js');
-      console.log('Service Worker registrado correctamente:', registration);
+      const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      console.log('Service Worker registrado con éxito:', registration);
       return registration;
     } catch (error) {
       console.error('Error al registrar Service Worker:', error);
       return null;
     }
   },
-  
-  async showNotification(title, options = {}) {
-    console.log(`Intentando mostrar notificación: "${title}"`);
-    
+
+  // Solicitar permiso para notificaciones
+  async requestPermission() {
     if (!this.isSupported()) {
-      console.warn('Notificaciones no soportadas');
+      console.warn('Las notificaciones no están soportadas en este navegador');
+      return false;
+    }
+
+    if (Notification.permission === 'granted') {
+      return true;
+    }
+
+    try {
+      if (Notification.permission !== 'denied') {
+        const permission = await Notification.requestPermission();
+        
+        // Si el permiso fue concedido, intentar registrar el Service Worker
+        if (permission === 'granted') {
+          await this.registerServiceWorker();
+        }
+        
+        return permission === 'granted';
+      }
+    } catch (error) {
+      console.error("Error al solicitar permiso de notificación:", error);
+    }
+
+    return false;
+  },
+
+  // Mostrar una notificación
+  async showNotification(title, options = {}) {
+    if (!this.isSupported()) {
+      console.warn('Las notificaciones no están soportadas en este navegador');
       return null;
     }
-    
-    if (Notification.permission !== 'granted') {
-      console.log('Permiso no concedido, solicitando...');
-      const granted = await this.requestPermission();
-      if (!granted) {
-        console.warn('Permiso denegado');
-        return null;
-      }
-    }
-    
+
     try {
-      // Intentar con Service Worker primero
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      // Si no tenemos permiso, intentar solicitarlo
+      if (Notification.permission !== 'granted') {
+        const granted = await this.requestPermission();
+        if (!granted) {
+          console.warn('Permiso de notificación denegado');
+          return null;
+        }
+      }
+
+      // Configuración predeterminada
+      const defaultOptions = {
+        icon: '/icon.png', // Reemplaza con tu icono
+        badge: '/badge.png', // Opcional
+        silent: false,
+        requireInteraction: true, // Mantener la notificación hasta que el usuario interactúe
+        timestamp: Date.now() // Importante para que las notificaciones aparezcan en orden
+      };
+
+      // Intentar mostrar la notificación a través del Service Worker si está disponible
+      if (this.isServiceWorkerSupported()) {
         try {
           const registration = await navigator.serviceWorker.ready;
-          console.log('Mostrando notificación via Service Worker');
-          return registration.showNotification(title, options);
+          console.log('Intentando mostrar notificación mediante Service Worker');
+          
+          return registration.showNotification(title, { 
+            ...defaultOptions, 
+            ...options 
+          });
         } catch (swError) {
-          console.warn('Error con Service Worker, usando fallback', swError);
+          console.warn('Error al mostrar notificación con Service Worker, usando fallback:', swError);
+          // Continuar con el método estándar si falla el Service Worker
         }
       }
       
-      // Fallback a notificación estándar
-      console.log('Mostrando notificación estándar');
-      return new Notification(title, options);
+      // Fallback a notificación regular
+      console.log('Mostrando notificación estándar (sin Service Worker)');
+      const notification = new Notification(title, { ...defaultOptions, ...options });
+
+      // Manejar eventos de la notificación
+      notification.onclick = options.onClick || (() => {
+        window.focus();
+        notification.close();
+      });
+
+      notification.onerror = (event) => {
+        console.error('Error al mostrar notificación:', event);
+      };
+
+      return notification;
     } catch (error) {
-      console.error('Error mostrando notificación:', error);
+      console.error('Error al mostrar notificación:', error);
       return null;
     }
   },
-  
+
+  // Guardar preferencia del usuario en localStorage
   savePreference(enabled) {
-    localStorage.setItem('notificationsEnabled', enabled ? 'true' : 'false');
+    try {
+      localStorage.setItem('notificationsEnabled', enabled ? 'true' : 'false');
+    } catch (error) {
+      console.error('Error al guardar preferencia de notificación:', error);
+    }
   },
-  
+
+  // Verificar si el usuario ha activado las notificaciones
   isEnabled() {
-    return localStorage.getItem('notificationsEnabled') === 'true';
-  },
-  
-  async initialize() {
-    if (this.isEnabled() && Notification.permission === 'granted') {
-      return this.registerServiceWorker();
-    }
-    return null;
-  },
-  
-  // Método para pruebas directas
-  async testNotification() {
-    console.log("Ejecutando prueba de notificación");
-    
-    if (Notification.permission !== 'granted') {
-      console.log("Solicitando permiso para test");
-      await this.requestPermission();
-    }
-    
-    if (Notification.permission === 'granted') {
-      try {
-        // Test simple con Notification API nativa
-        console.log("Mostrando notificación de prueba simple");
-        new Notification("Notificación de prueba", {
-          body: "Esta es una notificación de prueba simple"
-        });
-        return true;
-      } catch (error) {
-        console.error("Error en prueba simple:", error);
-        return false;
-      }
-    } else {
-      console.warn("Permiso no concedido para test");
+    try {
+      return localStorage.getItem('notificationsEnabled') === 'true';
+    } catch (error) {
+      console.error('Error al verificar preferencia de notificación:', error);
       return false;
     }
+  },
+
+  // Inicializar el sistema de notificaciones
+  async initialize() {
+    // Solo inicializar si el usuario ha activado las notificaciones
+    if (this.isEnabled() && Notification.permission === 'granted') {
+      try {
+        console.log('Inicializando sistema de notificaciones');
+        
+        // Registrar Service Worker
+        if (this.isServiceWorkerSupported()) {
+          await this.registerServiceWorker();
+          
+          // Escuchar mensajes del Service Worker
+          navigator.serviceWorker.addEventListener('message', (event) => {
+            console.log('Mensaje del Service Worker:', event.data);
+            
+            if (event.data && event.data.type === 'NOTIFICATION_CLICK') {
+              // Manejar clics en notificaciones
+              console.log('Notificación clickeada con datos:', event.data.data);
+            }
+          });
+        }
+        
+        console.log('Sistema de notificaciones inicializado correctamente');
+        return true;
+      } catch (error) {
+        console.error('Error al inicializar sistema de notificaciones:', error);
+        return false;
+      }
+    }
+    
+    return false;
   }
 };
