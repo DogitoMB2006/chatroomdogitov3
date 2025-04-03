@@ -8,6 +8,7 @@ import FriendRequests from "../components/FriendRequests";
 import CreateGroupButton from "../components/CreateGroupButton";
 import Staff from "../components/Staff";
 import { MdSearch, MdPeopleAlt, MdGroups, MdNotifications } from "react-icons/md";
+import { listenToUserStatus } from "../utils/onlineStatus";
 
 export default function Chats() {
   const { user, userData } = useContext(AuthContext);
@@ -19,7 +20,10 @@ export default function Chats() {
   const [unreadCounts, setUnreadCounts] = useState({});
   const [pendingFriendRequests, setPendingFriendRequests] = useState([]);
   const [showFriendRequestsModal, setShowFriendRequestsModal] = useState(false);
+  const [onlineStatuses, setOnlineStatuses] = useState({});
   const navigate = useNavigate();
+
+  // ELIMINADO: Todo el código relacionado con useOnlineStatus
 
   // Obtener amigos
   useEffect(() => {
@@ -47,7 +51,32 @@ export default function Chats() {
     }
   }, [userData]);
 
-  // Obtener grupos <---- 
+  // Listen to online status of friends
+  useEffect(() => {
+    if (!userData?.friends) return;
+
+    // Create an object to store unsubscribe functions
+    const unsubscribers = {};
+
+    // Listen to online status for each friend
+    userData.friends.forEach((friendUsername) => {
+      const unsubscribe = listenToUserStatus(friendUsername, (isOnline) => {
+        setOnlineStatuses(prev => ({
+          ...prev,
+          [friendUsername]: isOnline
+        }));
+      });
+
+      unsubscribers[friendUsername] = unsubscribe;
+    });
+
+    // Cleanup function
+    return () => {
+      Object.values(unsubscribers).forEach(unsub => unsub());
+    };
+  }, [userData?.friends]);
+
+  // Obtener grupos
   useEffect(() => {
     if (!userData) return;
 
@@ -65,7 +94,7 @@ export default function Chats() {
     return () => unsub();
   }, [userData]);
   
-  // Obtener solicitudes de amistad pendientes <--- que pique eto
+  // Obtener solicitudes de amistad pendientes
   useEffect(() => {
     if (!userData) return;
 
@@ -87,11 +116,10 @@ export default function Chats() {
     return () => unsub();
   }, [userData]);
 
-  // Obtener mensajes no leídos y últimos mensajes en tiempo real para eso funciona
+  // Obtener mensajes no leídos y últimos mensajes en tiempo real
   useEffect(() => {
     if (!userData) return;
     
-    // Objeto para almacenar los unsubscribe de los listeners <----
     const unsubscribers = [];
     
     // Listener para mensajes privados
@@ -118,7 +146,7 @@ export default function Chats() {
         }
         newUnreadCounts[from]++;
         
-        // Actualizar último mensaje si es más reciente dure mas que el diablo
+        // Actualizar último mensaje si es más reciente
         if (!newLastMessages[from] || 
             (msg.timestamp && 
             (!newLastMessages[from].timestamp || 
@@ -211,7 +239,7 @@ export default function Chats() {
     return () => {
       unsubscribers.forEach(unsub => unsub());
     };
-  }, [userData, friends, groups]); // Se ejecuta al cambiar amigos o grupos
+  }, [userData, friends, groups]); 
 
   // Filtrar chats por búsqueda
   const filteredFriends = friends.filter(friend => 
@@ -222,7 +250,7 @@ export default function Chats() {
     group.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // 
+  // Formatear tiempo relativo
   const formatRelativeTime = (timestamp) => {
     if (!timestamp) return "";
     
@@ -232,47 +260,33 @@ export default function Chats() {
     const diffInHours = Math.floor(diffInMinutes / 60);
     const diffInDays = Math.floor(diffInHours / 24);
     
-    
-    if (diffInMinutes < 1) {
-      return "ahora";
-    }
-    
-    else if (diffInMinutes < 60) {
-      return `hace ${diffInMinutes} min`;
-    }
-   
+    if (diffInMinutes < 1) return "ahora";
+    else if (diffInMinutes < 60) return `hace ${diffInMinutes} min`;
     else if (diffInHours < 24 && messageDate.getDate() === now.getDate()) {
       return messageDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     }
-    // Ayer
-    else if (diffInDays === 1) {
-      return "ayer";
-    }
-  
+    else if (diffInDays === 1) return "ayer";
     else if (diffInDays < 7) {
       const days = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
       return days[messageDate.getDay()];
     }
-
     else {
       return messageDate.toLocaleDateString([], { day: 'numeric', month: 'numeric' });
     }
   };
 
-  // Verificar si un amigo está en línea (simulado)
+  // Verificar si un amigo está en línea
   const isOnline = (username) => {
-    return Math.random() > 0.5; // eto lo hare mas adelante
+    return onlineStatuses[username] || false;
   };
 
-
+  // Manejar aceptación de solicitud de amistad
   const handleAcceptFriendRequest = async (req) => {
     try {
       const requestRef = doc(db, "friendRequests", req.id);
-      
   
       await updateDoc(requestRef, { status: "accepted" });
 
-     
       const usersRef = collection(db, "users");
 
       const q1 = query(usersRef, where("username", "==", userData.username));
@@ -300,7 +314,7 @@ export default function Chats() {
     }
   };
 
-
+  // Manejar rechazo de solicitud de amistad
   const handleRejectFriendRequest = async (req) => {
     try {
       await deleteDoc(doc(db, "friendRequests", req.id));
@@ -309,11 +323,11 @@ export default function Chats() {
     }
   };
 
+  // ELIMINADO: useEffect para actualizar estado online al cambiar de ruta
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-900 text-gray-100">
-      {/*  */}
-
-      {/**/}
+      {/* Barra de búsqueda */}
       <div className="p-4 border-b border-gray-800">
         <div className="relative">
           <MdSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -327,7 +341,7 @@ export default function Chats() {
         </div>
       </div>
 
-      {/*  */}
+      {/* Pestañas de navegación */}
       <div className="flex border-b border-gray-800">
         <button
           onClick={() => setSelectedTab("friends")}
@@ -460,9 +474,9 @@ export default function Chats() {
         )}
       </div>
 
-      {/*  */}
+      {/* Botones flotantes */}
       <div className="fixed bottom-6 right-6 flex flex-col gap-3">
-        {/* */}
+        {/* Solicitudes de amistad */}
         <button
           onClick={() => setShowFriendRequestsModal(true)}
           className="relative bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg rounded-full p-3"
@@ -484,7 +498,7 @@ export default function Chats() {
         )}
       </div>
 
-     
+      {/* Modal de solicitudes de amistad */}
       {showFriendRequestsModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
           <div className="bg-gray-800 border border-gray-700 p-6 rounded-lg w-full max-w-md shadow-lg">
@@ -499,7 +513,6 @@ export default function Chats() {
                     key={req.id}
                     className="flex items-center gap-3 bg-gray-700 p-3 rounded"
                   >
-                  
                     <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-600 flex-shrink-0">
                       {req.photoURL ? (
                         <img src={req.photoURL} alt="avatar" className="w-full h-full object-cover" />
