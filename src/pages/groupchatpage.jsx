@@ -47,14 +47,14 @@ export default function GroupChatPage() {
 
   if (checking) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-gray-500">
+      <div className="min-h-screen flex items-center justify-center text-gray-500 bg-gray-900">
         Verificando acceso al grupo...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen p-4 bg-gray-100">
+    <div className="min-h-screen bg-gray-900">
       {allowed ? <GroupChat /> : null}
     </div>
   );

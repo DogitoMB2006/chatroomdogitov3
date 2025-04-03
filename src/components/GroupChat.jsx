@@ -221,7 +221,7 @@ export default function GroupChat() {
       ) : (
         <>
           {/* Encabezado fijo */}
-          <div className="sticky top-0 z-10 bg-gray-800 border-b border-gray-700 py-3 px-4 flex items-center">
+          <div className="sticky top-0 z-10 bg-gray-900 py-3 px-4 flex items-center">
             <button 
               onClick={() => navigate("/chat")}
               className="text-gray-400 hover:text-gray-200 mr-3"
@@ -231,7 +231,7 @@ export default function GroupChat() {
             
             <div className="flex-1 flex items-center justify-between">
               <div className="flex items-center">
-                <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center mr-3">
+                <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center mr-3">
                   <span className="text-xl">👥</span>
                 </div>
                 <div className="flex-1">
@@ -245,7 +245,7 @@ export default function GroupChat() {
                 
                 <button
                   onClick={() => setViewingMembers(true)}
-                  className="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-700 rounded-full mr-2"
+                  className="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-full mr-2"
                   title="Ver miembros"
                 >
                   <MdPeople size={22} />
@@ -298,7 +298,7 @@ export default function GroupChat() {
                     <div className="flex items-start gap-2 max-w-[85%]">
                       {!isMine && (
                         <div 
-                          className="w-8 h-8 rounded-full overflow-hidden bg-gray-700 flex-shrink-0 mt-1 cursor-pointer hover:opacity-80"
+                          className="w-8 h-8 rounded-full overflow-hidden bg-gray-800 flex-shrink-0 mt-1 cursor-pointer hover:opacity-80"
                           onClick={() => setViewingProfile(msg.from)}
                         >
                           {photo ? (
@@ -316,8 +316,8 @@ export default function GroupChat() {
                       <div
                         className={`px-3 py-2 rounded-lg ${
                           isMine
-                            ? "bg-indigo-600 text-white"
-                            : "bg-gray-700 text-gray-100"
+                            ? "bg-indigo-700 text-white"
+                            : "bg-gray-800 text-gray-100"
                         }`}
                       >
                         {/* Nombre de usuario con badge de Staff */}
@@ -333,7 +333,7 @@ export default function GroupChat() {
                         
                         {/* Mensaje citado con badge de Staff */}
                         {msg.replyTo && (
-                          <div className={`text-xs italic border-l-2 pl-2 mb-2 ${isMine ? "border-indigo-400 text-indigo-200" : "border-gray-500 text-gray-300"}`}>
+                          <div className={`text-xs italic border-l-2 pl-2 mb-2 ${isMine ? "border-indigo-500 text-indigo-200" : "border-gray-700 text-gray-300"}`}>
                             <div className="flex items-center">
                               <span>{msg.replyTo.from}</span>
                               <Staff username={msg.replyTo.from} className="w-3 h-3 ml-1" />
@@ -387,7 +387,7 @@ export default function GroupChat() {
                             text: msg.text || (msg.image ? "[Imagen]" : "") 
                           })}
                           title="Responder"
-                          className="text-gray-500 hover:text-gray-300 bg-gray-800 p-1 rounded"
+                          className="text-gray-500 hover:text-gray-300 bg-gray-900 p-1 rounded"
                         >
                           <MdReply size={16} />
                         </button>
@@ -395,7 +395,7 @@ export default function GroupChat() {
                         {canDelete && (
                           <button
                             onClick={() => handleDelete(msg.id, msg.image)}
-                            className="text-red-500 hover:text-red-400 bg-gray-800 p-1 rounded"
+                            className="text-red-500 hover:text-red-400 bg-gray-900 p-1 rounded"
                             title="Eliminar"
                           >
                             <MdDelete size={16} />
@@ -412,7 +412,7 @@ export default function GroupChat() {
 
           {/* Mensaje citado */}
           {replyTo && (
-            <div className="bg-gray-800 border-l-4 border-indigo-500 px-3 py-2 mx-4 mb-2 text-sm text-gray-300 rounded">
+            <div className="bg-gray-900 border-l-4 border-indigo-600 px-3 py-2 mx-4 mb-2 text-sm text-gray-300 rounded">
               <div className="flex items-center">
                 Respondiendo a <strong className="mx-1 text-gray-200">{replyTo.from}</strong>
                 <Staff username={replyTo.from} className="w-3 h-3 mr-1" />
@@ -428,9 +428,9 @@ export default function GroupChat() {
           )}
 
           {/* Input area with image preview */}
-          <div className="bg-gray-800 border-t border-gray-700 p-3">
+          <div className="bg-gray-900 p-3">
             {image && (
-              <div className="mb-2 bg-gray-700 p-2 rounded text-sm text-gray-300 flex justify-between items-center">
+              <div className="mb-2 bg-gray-800 p-2 rounded text-sm text-gray-300 flex justify-between items-center">
                 <span>
                   Imagen: <strong className="text-gray-200">{image.name}</strong> 
                   ({Math.round(image.size / 1024)} KB)
@@ -448,19 +448,19 @@ export default function GroupChat() {
               <div className="flex space-x-1">
                 <button
                   onClick={handleImageClick}
-                  className="text-gray-400 hover:text-gray-200 p-2 rounded-full hover:bg-gray-700"
+                  className="text-gray-400 hover:text-gray-200 p-2 rounded-full hover:bg-gray-800"
                   title="Adjuntar imagen"
                 >
                   <MdImage size={20} />
                 </button>
                 <button
-                  className="text-gray-400 hover:text-gray-200 p-2 rounded-full hover:bg-gray-700"
+                  className="text-gray-400 hover:text-gray-200 p-2 rounded-full hover:bg-gray-800"
                   title="Insertar emoji"
                 >
                   <MdEmojiEmotions size={20} />
                 </button>
                 <button
-                  className="text-gray-400 hover:text-gray-200 p-2 rounded-full hover:bg-gray-700"
+                  className="text-gray-400 hover:text-gray-200 p-2 rounded-full hover:bg-gray-800"
                   title="Añadir GIF"
                 >
                   <MdGif size={20} />
@@ -478,7 +478,7 @@ export default function GroupChat() {
               <textarea
                 type="text"
                 placeholder="Escribe un mensaje..."
-                className="flex-1 bg-gray-700 text-gray-100 border border-gray-600 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[40px] max-h-24"
+                className="flex-1 bg-gray-800 text-gray-100 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-600 min-h-[40px] max-h-24"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -490,8 +490,8 @@ export default function GroupChat() {
                 disabled={(!text.trim() && !image) || kickedOut}
                 className={`p-2 rounded-full ${
                   (!text.trim() && !image) || kickedOut
-                    ? "bg-gray-700 text-gray-500 cursor-not-allowed"
-                    : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                    ? "bg-gray-800 text-gray-500 cursor-not-allowed"
+                    : "bg-indigo-700 hover:bg-indigo-800 text-white"
                 }`}
               >
                 <MdSend size={20} />
