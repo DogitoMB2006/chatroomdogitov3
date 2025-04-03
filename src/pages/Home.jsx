@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function Home() {
+  const navigate = useNavigate();
+  
   // Array de updates para mostrar (ejemplo)
   const [updates, setUpdates] = useState([
     {
       id: 1,
-      version: "v1.2.0",
+      version: "v1.0.1",
       date: "3 Abril, 2025",
       title: "Nuevo sistema de notificaciones",
       description: "He agregado un sistema de notificaciones en tiempo real para mejorar la experiencia de comunicacion.",
@@ -18,7 +21,7 @@ export default function Home() {
     },
     {
       id: 2,
-      version: "v1.1.5",
+      version: "v1.0.0",
       date: "2 Marzo, 2025",
       title: "Mejoras de rendimiento",
       description: "Optimizaciones en el rendimiento general de la aplicación y corrección de errores. :D",
@@ -54,7 +57,7 @@ export default function Home() {
             Chatroom Updates
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Mantente informado sobre las últimas mejoras y características de esta plataforma de M :D.
+            Mantente informado sobre las últimas mejoras y características de nuestra plataforma.
           </p>
         </div>
 
@@ -94,7 +97,10 @@ export default function Home() {
 
         {/* Footer */}
         <div className="mt-16 text-center">
-          <button className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium rounded-lg shadow-md hover:shadow-lg transform transition hover:-translate-y-0.5">
+          <button 
+            onClick={() => navigate('/chat')}
+            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium rounded-lg shadow-md hover:shadow-lg transform transition hover:-translate-y-0.5"
+          >
             Entrar al Chat
           </button>
           <p className="mt-4 text-sm text-gray-500">
