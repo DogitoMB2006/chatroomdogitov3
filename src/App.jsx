@@ -17,6 +17,7 @@ import { AuthContext } from "./context/AuthContext";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "./firebase/config";
 import AlertNotifications from './components/AlertNotifications';
+import { NotificationManager } from './utils/NotificationManager';
 
 // Función global para actualizar el estado online (fuera del componente)
 const updateOnlineStatus = async (userId, username, status) => {
@@ -158,6 +159,43 @@ function OnlineStatusTracker() {
 }
 
 export default function App() {
+  // Inicializar el sistema de notificaciones
+  useEffect(() => {
+    const initNotifications = async () => {
+      if (NotificationManager.isSupported()) {
+        console.log('Inicializando sistema de notificaciones...');
+        
+        // Verificar si ya hemos guardado la preferencia
+        const notifKey = "notificacionesAceptadas";
+        
+        if (localStorage.getItem(notifKey) === 'true') {
+          // El usuario ya aceptó las notificaciones, inicializar el sistema
+          try {
+            await NotificationManager.initialize();
+            console.log('Sistema de notificaciones inicializado correctamente');
+            
+            // Si estamos en producción (no en localhost), mostrar una notificación de prueba
+            if (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+              setTimeout(() => {
+                NotificationManager.showNotification(
+                  '¡Notificaciones funcionando!',
+                  {
+                    body: 'Ahora recibirás notificaciones incluso cuando esta pestaña esté cerrada.',
+                    requireInteraction: false
+                  }
+                );
+              }, 5000);
+            }
+          } catch (error) {
+            console.error('Error al inicializar el sistema de notificaciones:', error);
+          }
+        }
+      }
+    };
+
+    initNotifications();
+  }, []);
+
   return (
     <Router>
       <ToastProvider>
