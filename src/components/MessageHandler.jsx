@@ -23,7 +23,6 @@ export default function MessageHandler({ receiver }) {
   const [receiverData, setReceiverData] = useState(null);
 
   useEffect(() => {
-    // Obtener la foto del receptor
     const getReceiverData = async () => {
       const q = query(collection(db, "users"), where("username", "==", receiver));
       const snap = await getDocs(q);
@@ -122,10 +121,29 @@ export default function MessageHandler({ receiver }) {
                     : 'bg-gray-200 text-black'
                   }`}
               >
-                <p>{msg.text}</p>
+                {/* Texto con links detectados */}
+                <p className="break-words">
+                  {msg.text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+                    part.match(/^https?:\/\/[^\s]+$/) ? (
+                      <a
+                        key={i}
+                        href={part}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-300 underline"
+                      >
+                        {part}
+                      </a>
+                    ) : (
+                      <span key={i}>{part}</span>
+                    )
+                  )}
+                </p>
+
                 <span className="block text-[10px] mt-1 text-right opacity-70">
                   {msg.timestamp?.toDate ? format(msg.timestamp.toDate(), 'p') : '...'}
                 </span>
+
                 {msg.from !== userData.username && !msg.read && (
                   <span className="absolute top-0 right-0 bg-red-500 w-2 h-2 rounded-full" title="No leído"></span>
                 )}
