@@ -49,7 +49,9 @@ export default function NotificationListener() {
           showToast({
             username: msg.from,
             text: msg.text,
-            photoURL: sender?.photoURL
+            photoURL: sender?.photoURL,
+            type: "private", // Indicar que es un chat privado
+            from: msg.from, // Nombre de usuario del remitente para la navegación
           });
         }
       }

@@ -55,7 +55,10 @@ export default function GroupNotificationListener() {
             showToast({
               username: `${data.from} • ${group.name}`,
               text: data.text || "📷 Imagen",
-              photoURL: data.photoURL || null
+              photoURL: data.photoURL || null,
+              type: "group", // Indicar que es un chat de grupo
+              chatId: groupId, // ID del grupo para la navegación
+              from: data.from // Usuario que envió el mensaje
             });
 
             lastSeen[groupId] = msgId;
