@@ -1,3 +1,4 @@
+// ... imports igual que antes
 import { useEffect, useState, useContext, useRef } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { db, storage } from "../firebase/config";
@@ -68,6 +69,29 @@ export default function MessageHandler({ receiver }) {
           if (data.to === userData.username && !data.read) {
             await updateDoc(doc(db, "messages", docSnap.id), { read: true });
           }
+
+          // 👇 Aquí agregamos los logs de depuración
+          if (data.to === userData.username && data.from !== receiver) {
+            console.log("🔎 Estado para notificación:");
+            console.log("➡️ Es mensaje de otra persona:", data.from !== receiver);
+            console.log("➡️ Es para mí:", data.to === userData.username);
+            console.log("➡️ Permiso:", Notification.permission);
+            console.log("➡️ Visibilidad:", document.visibilityState);
+          }
+
+          if (
+            data.from !== receiver &&
+            data.to === userData.username &&
+            Notification.permission === "granted" &&
+            document.visibilityState === "visible"
+          ) {
+            console.log("📢 Mostrando notificación de:", data.from, data.text);
+            new Notification(`Mensaje de ${data.from}`, {
+              body: data.text || "📷 Imagen",
+              icon: "/logo192.png"
+            });
+          }
+
           filtered.push({ ...data, id: docSnap.id });
         }
       }
@@ -169,6 +193,7 @@ export default function MessageHandler({ receiver }) {
                     : 'bg-gray-200 text-black'
                   }`}
               >
+                {/* Imagen si hay */}
                 {msg.image && (
                   <div className="relative group">
                     <img
@@ -188,6 +213,7 @@ export default function MessageHandler({ receiver }) {
                   </div>
                 )}
 
+                {/* Texto con links */}
                 {msg.text && (
                   <p className="break-words">
                     {msg.text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
@@ -235,7 +261,6 @@ export default function MessageHandler({ receiver }) {
       {/* Entrada de texto con ícono y botón */}
       <div className="border-t p-2 flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          {/* Ícono de imagen */}
           <label htmlFor="imageInput" className="text-blue-600 hover:text-blue-800 text-2xl cursor-pointer">
             <MdImage title="Adjuntar imagen" />
           </label>
@@ -247,7 +272,6 @@ export default function MessageHandler({ receiver }) {
             className="hidden"
           />
 
-          {/* Campo de texto */}
           <input
             type="text"
             placeholder="Escribe un mensaje..."
@@ -257,7 +281,6 @@ export default function MessageHandler({ receiver }) {
             onKeyDown={handleKeyDown}
           />
 
-          {/* Botón enviar */}
           <button
             onClick={sendMessage}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
@@ -266,7 +289,6 @@ export default function MessageHandler({ receiver }) {
           </button>
         </div>
 
-        {/* Nombre de imagen seleccionada */}
         {image && (
           <p className="text-sm text-gray-500 mt-1">
             Imagen seleccionada: <strong>{image.name}</strong>
