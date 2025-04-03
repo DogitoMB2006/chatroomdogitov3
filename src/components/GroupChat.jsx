@@ -318,7 +318,25 @@ export default function GroupChat() {
                           </div>
                         )}
                         
-                        <p className="break-words whitespace-pre-wrap">{msg.text}</p>
+                        {msg.text && (
+                          <p className="break-words whitespace-pre-wrap">
+                            {msg.text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+                              part.match(/^https?:\/\/[^\s]+$/) ? (
+                                <a
+                                  key={i}
+                                  href={part}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`underline ${isMine ? 'text-blue-200' : 'text-blue-300'}`}
+                                >
+                                  {part}
+                                </a>
+                              ) : (
+                                <span key={i}>{part}</span>
+                              )
+                            )}
+                          </p>
+                        )}
                         <p className={`text-[10px] text-right mt-1 ${isMine ? "text-indigo-200 opacity-70" : "text-gray-400 opacity-70"}`}>
                           {msg.timestamp?.toDate
                             ? format(msg.timestamp.toDate(), "p")
