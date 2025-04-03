@@ -121,7 +121,7 @@ export default function MessageHandler({ receiver }) {
                     : 'bg-gray-200 text-black'
                   }`}
               >
-                {/* Texto con links detectados */}
+                {/* Texto con links detectado */}
                 <p className="break-words">
                   {msg.text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
                     part.match(/^https?:\/\/[^\s]+$/) ? (
