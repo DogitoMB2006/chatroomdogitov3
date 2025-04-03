@@ -1,13 +1,13 @@
 import { useContext, useEffect, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
-import { collection, getDocs, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
+import { collection, getDocs, query, where, onSnapshot, orderBy, limit, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useNavigate } from "react-router-dom";
 import AddFriend from "../components/AddFriend";
 import FriendRequests from "../components/FriendRequests";
 import CreateGroupButton from "../components/CreateGroupButton";
 import Staff from "../components/Staff";
-import { MdSearch, MdPeopleAlt, MdGroups } from "react-icons/md";
+import { MdSearch, MdPeopleAlt, MdGroups, MdNotifications } from "react-icons/md";
 
 export default function Chats() {
   const { user, userData } = useContext(AuthContext);
@@ -17,6 +17,8 @@ export default function Chats() {
   const [searchTerm, setSearchTerm] = useState("");
   const [lastMessages, setLastMessages] = useState({});
   const [unreadCounts, setUnreadCounts] = useState({});
+  const [pendingFriendRequests, setPendingFriendRequests] = useState([]);
+  const [showFriendRequestsModal, setShowFriendRequestsModal] = useState(false);
   const navigate = useNavigate();
 
   // Obtener amigos
@@ -58,6 +60,28 @@ export default function Chats() {
       const results = [];
       snap.forEach((doc) => results.push({ id: doc.id, ...doc.data() }));
       setGroups(results);
+    });
+
+    return () => unsub();
+  }, [userData]);
+
+  // Obtener solicitudes de amistad pendientes
+  useEffect(() => {
+    if (!userData) return;
+
+    const q = query(
+      collection(db, "friendRequests"),
+      where("to", "==", userData.username),
+      where("status", "==", "pending"),
+      orderBy("timestamp", "desc")
+    );
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      const requests = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setPendingFriendRequests(requests);
     });
 
     return () => unsub();
@@ -241,6 +265,51 @@ export default function Chats() {
     return Math.random() > 0.5; // Simulación para el ejemplo
   };
 
+  // Manejar aceptar solicitud de amistad
+  const handleAcceptFriendRequest = async (req) => {
+    try {
+      const requestRef = doc(db, "friendRequests", req.id);
+      
+      // 1. Marcar como aceptado
+      await updateDoc(requestRef, { status: "accepted" });
+
+      // 2. Agregar a ambos en sus listas de amigos
+      const usersRef = collection(db, "users");
+
+      const q1 = query(usersRef, where("username", "==", userData.username));
+      const q2 = query(usersRef, where("username", "==", req.from));
+
+      const [meSnap, senderSnap] = await Promise.all([getDocs(q1), getDocs(q2)]);
+
+      if (!meSnap.empty && !senderSnap.empty) {
+        const meDoc = meSnap.docs[0];
+        const senderDoc = senderSnap.docs[0];
+
+        const meFriends = meDoc.data().friends || [];
+        const senderFriends = senderDoc.data().friends || [];
+
+        await updateDoc(doc(db, "users", meDoc.id), {
+          friends: [...new Set([...meFriends, req.from])]
+        });
+
+        await updateDoc(doc(db, "users", senderDoc.id), {
+          friends: [...new Set([...senderFriends, userData.username])]
+        });
+      }
+    } catch (error) {
+      console.error("Error al aceptar solicitud:", error);
+    }
+  };
+
+  // Manejar rechazar solicitud de amistad
+  const handleRejectFriendRequest = async (req) => {
+    try {
+      await deleteDoc(doc(db, "friendRequests", req.id));
+    } catch (error) {
+      console.error("Error al rechazar solicitud:", error);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-900 text-gray-100">
       {/* No utilizamos header aquí ya que tenemos Navbar */}
@@ -394,6 +463,20 @@ export default function Chats() {
 
       {/* Acciones flotantes */}
       <div className="fixed bottom-6 right-6 flex flex-col gap-3">
+        {/* Botón de notificaciones de solicitudes de amistad */}
+        <button
+          onClick={() => setShowFriendRequestsModal(true)}
+          className="relative bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg rounded-full p-3"
+          title="Solicitudes de amistad"
+        >
+          <MdNotifications size={20} />
+          {pendingFriendRequests.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+              {pendingFriendRequests.length}
+            </span>
+          )}
+        </button>
+        
         {selectedTab === "friends" && (
           <AddFriend className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg rounded-full p-3" />
         )}
@@ -401,6 +484,65 @@ export default function Chats() {
           <CreateGroupButton className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg rounded-full p-3" />
         )}
       </div>
+
+      {/* Modal de solicitudes de amistad */}
+      {showFriendRequestsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
+          <div className="bg-gray-800 border border-gray-700 p-6 rounded-lg w-full max-w-md shadow-lg">
+            <h2 className="text-xl font-bold mb-4 text-gray-100">Solicitudes de amistad</h2>
+
+            {pendingFriendRequests.length === 0 ? (
+              <p className="text-center text-gray-400">No tienes solicitudes pendientes.</p>
+            ) : (
+              <ul className="space-y-3">
+                {pendingFriendRequests.map((req) => (
+                  <li
+                    key={req.id}
+                    className="flex items-center gap-3 bg-gray-700 p-3 rounded"
+                  >
+                    {/* Imagen de perfil */}
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-600 flex-shrink-0">
+                      {req.photoURL ? (
+                        <img src={req.photoURL} alt="avatar" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-sm text-gray-300">😶</div>
+                      )}
+                    </div>
+                  
+                    {/* Nombre y botones */}
+                    <div className="flex justify-between items-center w-full">
+                      <span className="text-gray-200">{req.from}</span>
+                      <div className="space-x-2">
+                        <button
+                          onClick={() => handleAcceptFriendRequest(req)}
+                          className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-sm"
+                        >
+                          Aceptar
+                        </button>
+                        <button
+                          onClick={() => handleRejectFriendRequest(req)}
+                          className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-sm"
+                        >
+                          Rechazar
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="text-right mt-4">
+              <button
+                onClick={() => setShowFriendRequestsModal(false)}
+                className="text-gray-400 hover:text-gray-300"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,7 +3,16 @@ import { useContext, useState, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
 import MessageHandler from "../components/MessageHandler";
 import { db } from "../firebase/config";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  updateDoc,
+  onSnapshot,
+  orderBy,
+  doc
+} from "firebase/firestore";
 import { MdArrowBack, MdMoreVert, MdCall, MdVideocam } from "react-icons/md";
 
 export default function PrivateChat() {
@@ -13,6 +22,7 @@ export default function PrivateChat() {
   const [receiverData, setReceiverData] = useState(null);
   const [showUserInfo, setShowUserInfo] = useState(false);
 
+  // Obtener datos del receptor
   useEffect(() => {
     const fetchReceiverData = async () => {
       const q = query(collection(db, "users"), where("username", "==", username));
@@ -24,6 +34,38 @@ export default function PrivateChat() {
     
     fetchReceiverData();
   }, [username]);
+
+  // Marcar mensajes como leídos al entrar al chat
+  useEffect(() => {
+    if (!userData) return;
+
+    // Consulta para obtener mensajes no leídos de este remitente
+    const messagesRef = collection(db, "messages");
+    const q = query(
+      messagesRef,
+      where("from", "==", username),
+      where("to", "==", userData.username),
+      where("read", "==", false),
+      orderBy("timestamp", "desc")
+    );
+
+    // Escuchar cambios en tiempo real y marcar como leídos
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      // Marcar todos los mensajes como leídos
+      const batch = [];
+      for (const docSnap of snapshot.docs) {
+        batch.push(updateDoc(doc(db, "messages", docSnap.id), { read: true }));
+      }
+      
+      // Si hay mensajes para actualizar, ejecutar todas las actualizaciones
+      if (batch.length > 0) {
+        await Promise.all(batch);
+        console.log(`Marcados ${batch.length} mensajes como leídos`);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [userData, username]);
 
   const goBack = () => {
     navigate("/chat");

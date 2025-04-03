@@ -12,7 +12,8 @@ import {
   updateDoc,
   doc,
   getDocs,
-  deleteDoc
+  deleteDoc,
+  writeBatch
 } from "firebase/firestore";
 import {
   ref,
@@ -27,7 +28,6 @@ import {
   MdReply, 
   MdSend, 
   MdEmojiEmotions,
-  MdAddReaction,
   MdGif
 } from "react-icons/md";
 import Staff from "../components/Staff";
@@ -43,7 +43,9 @@ export default function MessageHandler({ receiver }) {
   const [replyTo, setReplyTo] = useState(null);
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const isMountedRef = useRef(true); // Para evitar actualizar estado después de desmontar
 
+  // Obtener datos del receptor
   useEffect(() => {
     const getReceiverData = async () => {
       const q = query(collection(db, "users"), where("username", "==", receiver));
@@ -55,11 +57,47 @@ export default function MessageHandler({ receiver }) {
     getReceiverData();
   }, [receiver]);
 
+  // Marcar mensajes como leídos inmediatamente al entrar al chat
+  useEffect(() => {
+    const markMessagesAsRead = async () => {
+      if (!userData || !receiver) return;
+
+      try {
+        // Consulta todos los mensajes no leídos enviados por el receptor
+        const messagesRef = collection(db, "messages");
+        const q = query(
+          messagesRef,
+          where("from", "==", receiver),
+          where("to", "==", userData.username),
+          where("read", "==", false)
+        );
+
+        const snapshot = await getDocs(q);
+        
+        if (!snapshot.empty) {
+          // Usar batch para actualizar múltiples documentos eficientemente
+          const batch = writeBatch(db);
+          
+          snapshot.docs.forEach((docSnapshot) => {
+            batch.update(doc(db, "messages", docSnapshot.id), { read: true });
+          });
+          
+          await batch.commit();
+          console.log(`Marcados ${snapshot.docs.length} mensajes como leídos al entrar al chat`);
+        }
+      } catch (error) {
+        console.error("Error al marcar mensajes como leídos:", error);
+      }
+    };
+
+    markMessagesAsRead();
+  }, [userData, receiver]);
+
+  // Cargar mensajes y mantener listener
   useEffect(() => {
     if (!userData) return;
 
     const messagesRef = collection(db, "messages");
-
     const q = query(
       messagesRef,
       where("participants", "array-contains", userData.username),
@@ -68,6 +106,7 @@ export default function MessageHandler({ receiver }) {
 
     const unsub = onSnapshot(q, async (snapshot) => {
       const filtered = [];
+      const unreadMessages = [];
 
       for (const docSnap of snapshot.docs) {
         const data = docSnap.data();
@@ -77,8 +116,9 @@ export default function MessageHandler({ receiver }) {
           (data.from === receiver && data.to === userData.username);
 
         if (isBetween) {
+          // Si el mensaje es no leído y es para mí, añadirlo a la lista para marcar como leído
           if (data.to === userData.username && !data.read) {
-            await updateDoc(doc(db, "messages", docSnap.id), { read: true });
+            unreadMessages.push(docSnap.id);
           }
 
           filtered.push({ ...data, id: docSnap.id });
@@ -86,15 +126,32 @@ export default function MessageHandler({ receiver }) {
       }
 
       setMessages(filtered);
+      
+      // Marcar mensajes como leídos (en segundo plano)
+      if (unreadMessages.length > 0) {
+        const batch = writeBatch(db);
+        
+        unreadMessages.forEach((msgId) => {
+          batch.update(doc(db, "messages", msgId), { read: true });
+        });
+        
+        batch.commit().catch(err => console.error("Error al marcar mensajes como leídos:", err));
+      }
+      
       scrollToBottom();
     });
 
-    return () => unsub();
+    return () => {
+      unsub();
+      isMountedRef.current = false;
+    };
   }, [userData, receiver]);
 
   const scrollToBottom = () => {
     setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
     }, 100);
   };
 
@@ -292,10 +349,7 @@ export default function MessageHandler({ receiver }) {
                         {msg.timestamp?.toDate ? format(msg.timestamp.toDate(), 'p') : '...'}
                       </span>
 
-                      {/* Indicador de no leído */}
-                      {msg.from !== userData.username && !msg.read && (
-                        <span className="absolute top-0 right-0 bg-red-500 w-2 h-2 rounded-full" title="No leído"></span>
-                      )}
+                      {/* No mostramos indicador de no leído ya que todos son leídos al entrar */}
                     </div>
                   </div>
 

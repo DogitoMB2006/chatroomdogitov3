@@ -12,6 +12,7 @@ import NotificationListener from './components/NotificationListener';
 import { ToastProvider } from "./context/ToastContext";
 import GroupChatPage from "./pages/groupchatpage";
 import GroupNotificationListener from "./components/GroupNotificationListener";
+import FriendRequestListener from './components/FriendRequestListener';
 
 export default function App() {
   /* useEffect(() => {
@@ -38,24 +39,26 @@ export default function App() {
 
   return (
     <Router>
-       <ToastProvider>
-      <div>
-        <Navbar />
-        <NotificationListener />
-        <GroupNotificationListener />
-
-        
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/chat" element={<Chats />} />
-          <Route path="/chat/:username" element={<PrivateChat />} />
-          <Route path="/editprofile" element={<EditProfile />} />
-          <Route path="/chat/group/:groupId" element={<GroupChatPage />} />
-        </Routes>
-        
-      </div>
+      <ToastProvider>
+        <div>
+          <Navbar />
+          
+          {/* Componentes de escucha de notificaciones */}
+          <NotificationListener />
+          <GroupNotificationListener />
+          <FriendRequestListener />
+          
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/chat" element={<Chats />} />
+            <Route path="/chat/:username" element={<PrivateChat />} />
+            <Route path="/editprofile" element={<EditProfile />} />
+            <Route path="/chat/group/:groupId" element={<GroupChatPage />} />
+          </Routes>
+          
+        </div>
       </ToastProvider>
     </Router>
   );

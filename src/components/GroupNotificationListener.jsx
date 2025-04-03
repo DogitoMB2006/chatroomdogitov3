@@ -1,4 +1,5 @@
 import { useContext, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { db } from "../firebase/config";
 import {
   collection,
@@ -13,6 +14,7 @@ import { useToast } from "../context/ToastContext";
 export default function GroupNotificationListener() {
   const { userData } = useContext(AuthContext);
   const { showToast } = useToast();
+  const location = useLocation();
 
   useEffect(() => {
     if (!userData) return;
@@ -46,6 +48,17 @@ export default function GroupNotificationListener() {
 
           const data = last.data();
           const msgId = last.id;
+
+          // Verificar si ya estamos en el chat de este grupo
+          const currentPath = location.pathname;
+          const groupPath = `/chat/group/${groupId}`;
+          
+          // Si estamos en el chat de este grupo, actualizar el último mensaje visto pero no mostrar notificación
+          if (currentPath === groupPath) {
+            lastSeen[groupId] = msgId;
+            localStorage.setItem(notifKey, JSON.stringify(lastSeen));
+            return;
+          }
 
           const lastNotif = lastSeen[groupId];
           if (
@@ -82,7 +95,7 @@ export default function GroupNotificationListener() {
       unsubGroups();
       unsubMessageListeners.forEach((unsub) => unsub());
     };
-  }, [userData, showToast]);
+  }, [userData, showToast, location.pathname]); // Añadir location.pathname como dependencia
 
   return null;
 }

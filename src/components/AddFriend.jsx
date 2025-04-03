@@ -2,139 +2,223 @@ import { useState, useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { db } from "../firebase/config";
 import {
-  getDocs, query, collection, where, addDoc
+  addDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+  serverTimestamp
 } from "firebase/firestore";
-import { AiOutlineUserAdd } from "react-icons/ai";
+import { FaUserPlus } from "react-icons/fa";
 
-export default function AddFriend() {
+export default function AddFriend({ className }) {
   const { userData } = useContext(AuthContext);
+  const [username, setUsername] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [searchUsername, setSearchUsername] = useState('');
-  const [foundUser, setFoundUser] = useState(null);
-  const [message, setMessage] = useState('');
 
-  const handleSearch = async () => {
-    setMessage('');
-    setFoundUser(null);
-    if (searchUsername === userData.username) {
-      setMessage("No puedes enviarte una solicitud a ti misma.");
+  const resetState = () => {
+    setUsername("");
+    setError("");
+    setSuccess(false);
+    setLoading(false);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setSuccess(false);
+
+    if (!username.trim()) {
+      setError("Por favor ingresa un nombre de usuario");
+      setLoading(false);
       return;
     }
 
-    const q = query(collection(db, "users"), where("username", "==", searchUsername));
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      const userFound = snap.docs[0].data();
-
-      // esto e pa verificar si ya son amigos
-      if (userFound.friends?.includes(userData.username)) {
-        setMessage("¡Ya son amigos!");
+    try {
+      // 1. Si el usuario es uno mismo
+      if (username === userData.username) {
+        setError("No puedes agregarte a ti mismo");
+        setLoading(false);
         return;
       }
 
-      // verificar si ya hay solicitud pendiente
-      const requests = await getDocs(
-        query(
-          collection(db, "friendRequests"),
-          where("from", "==", userData.username),
-          where("to", "==", searchUsername),
-        )
+      // 2. Verificar si el usuario existe
+      const q = query(
+        collection(db, "users"),
+        where("username", "==", username)
       );
-      if (!requests.empty) {
-        setMessage("Ya enviaste una solicitud a esta persona.");
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        setError("El usuario no existe");
+        setLoading(false);
         return;
       }
 
-      setFoundUser(userFound);
-    } else {
-      setMessage("No se encontró ese usuario.");
+      // 3. Verificar si ya son amigos
+      if (userData.friends && userData.friends.includes(username)) {
+        setError("Ya son amigos");
+        setLoading(false);
+        return;
+      }
+
+      // 4. Verificar si ya hay una solicitud pendiente
+      const q2 = query(
+        collection(db, "friendRequests"),
+        where("from", "==", userData.username),
+        where("to", "==", username),
+        where("status", "==", "pending")
+      );
+      const snapshot2 = await getDocs(q2);
+
+      if (!snapshot2.empty) {
+        setError("Ya enviaste una solicitud a ese usuario");
+        setLoading(false);
+        return;
+      }
+
+      // 5. Enviar solicitud - Corregimos el problema con photoURL undefined
+      const requestData = {
+        from: userData.username,
+        to: username,
+        status: "pending",
+        timestamp: serverTimestamp()
+      };
+      
+      // Solo añadimos photoURL si existe
+      if (userData.photoURL) {
+        requestData.photoURL = userData.photoURL;
+      }
+
+      await addDoc(collection(db, "friendRequests"), requestData);
+
+      setSuccess(true);
+      setUsername("");
+    } catch (error) {
+      console.error("Error al enviar solicitud:", error);
+      setError("Error al enviar solicitud");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const sendRequest = async () => {
-    await addDoc(collection(db, "friendRequests"), {
-      from: userData.username,
-      to: searchUsername,
-      status: "pending"
-    });
-    setMessage("Solicitud enviada ✅");
-    setFoundUser(null);
-    setSearchUsername('');
-  };
+  // Si se proporciona una clase personalizada, renderizar como botón flotante
+  if (className) {
+    return (
+      <>
+        <button
+          onClick={() => setShowModal(true)}
+          className={className}
+          title="Agregar amigo"
+        >
+          <FaUserPlus size={20} />
+        </button>
 
+        {showModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
+            <div className="bg-gray-800 border border-gray-700 p-6 rounded-lg w-full max-w-md shadow-lg">
+              <h2 className="text-xl font-bold mb-4 text-gray-100">Agregar un amigo</h2>
+
+              <form onSubmit={handleSubmit}>
+                <input
+                  type="text"
+                  placeholder="Nombre de usuario"
+                  className="w-full bg-gray-700 text-gray-100 border border-gray-600 rounded px-3 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                />
+
+                {error && <p className="text-red-400 text-sm mb-2">{error}</p>}
+                {success && (
+                  <p className="text-green-400 text-sm mb-2">
+                    Solicitud enviada correctamente
+                  </p>
+                )}
+
+                <div className="flex justify-between mt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowModal(false);
+                      resetState();
+                    }}
+                    className="text-gray-400 hover:text-gray-300"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded disabled:opacity-50"
+                  >
+                    {loading ? "Enviando..." : "Enviar solicitud"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // Renderizado normal (cuando no se proporciona clase personalizada)
   return (
-    <div className="mb-4 text-center">
-      
+    <div className="text-center">
       <button
         onClick={() => setShowModal(true)}
-        className="bg-blue-600 text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-blue-700"
+        className="mt-2 text-blue-500 hover:text-blue-400 flex items-center justify-center gap-1"
       >
-        <AiOutlineUserAdd /> Agregar amigo
+        <FaUserPlus /> Agregar amigo
       </button>
 
-      {/* el tieto de modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded w-full max-w-md shadow">
-            <h2 className="text-xl font-bold mb-4 text-center">Agregar amigo</h2>
+          <div className="bg-gray-800 border border-gray-700 p-6 rounded-lg w-full max-w-md shadow-lg">
+            <h2 className="text-xl font-bold mb-4 text-gray-100">Agregar un amigo</h2>
 
-            <input
-              type="text"
-              className="w-full p-2 border rounded mb-2"
-              placeholder="Nombre de usuario"
-              value={searchUsername}
-              onChange={(e) => setSearchUsername(e.target.value)}
-            />
+            <form onSubmit={handleSubmit}>
+              <input
+                type="text"
+                placeholder="Nombre de usuario"
+                className="w-full bg-gray-700 text-gray-100 border border-gray-600 rounded px-3 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
 
-            <button
-              onClick={handleSearch}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded w-full"
-            >
-              Buscar
-            </button>
+              {error && <p className="text-red-400 text-sm mb-2">{error}</p>}
+              {success && (
+                <p className="text-green-400 text-sm mb-2">
+                  Solicitud enviada correctamente
+                </p>
+              )}
 
-            {foundUser && (
-  <div className="mt-4 bg-gray-100 p-3 rounded flex items-center justify-between gap-4">
-    {/* Foto de perfil */}
-    <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-300 flex-shrink-0">
-      {foundUser.photoURL ? (
-        <img src={foundUser.photoURL} alt="avatar" className="w-full h-full object-cover" />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center text-sm text-gray-500">
-          😶
-        </div>
-      )}
-    </div>
+              <div className="flex justify-between mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModal(false);
+                    resetState();
+                  }}
+                  className="text-gray-400 hover:text-gray-300"
+                >
+                  Cancelar
+                </button>
 
-    {/* Nombre y botón */}
-    <div className="flex justify-between items-center w-full">
-      <span className="font-medium">{foundUser.username}</span>
-      <button
-        onClick={sendRequest}
-        className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
-      >
-        Enviar solicitud
-      </button>
-    </div>
-  </div>
-)}
-
-
-            {message && <p className="mt-3 text-center text-sm text-gray-600">{message}</p>}
-
-            <div className="text-right mt-4">
-              <button
-                onClick={() => {
-                  setShowModal(false);
-                  setSearchUsername('');
-                  setFoundUser(null);
-                  setMessage('');
-                }}
-                className="text-sm text-gray-500 hover:underline"
-              >
-                Cerrar
-              </button>
-            </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded disabled:opacity-50"
+                >
+                  {loading ? "Enviando..." : "Enviar solicitud"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
