@@ -1,5 +1,5 @@
 import React, { useEffect, useContext } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Register from './components/Register';
 import Login from './components/Login';
@@ -14,168 +14,205 @@ import GroupChatPage from "./pages/groupchatpage";
 import GroupNotificationListener from "./components/GroupNotificationListener";
 import FriendRequestListener from './components/FriendRequestListener';
 import { AuthContext } from "./context/AuthContext";
-import { updateOnlineStatus } from "./utils/onlineStatus";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "./firebase/config";
+import { NotificationService } from './utils/NotificationService';
+
+// Función global para actualizar el estado online (fuera del componente)
+const updateOnlineStatus = async (userId, username, status) => {
+  if (!userId || !username) return;
+
+  console.log(`[GLOBAL] Actualizando estado a: ${status ? 'online' : 'offline'} para ${username}`);
+
+  try {
+    const userRef = doc(db, "users", userId);
+    await updateDoc(userRef, {
+      online: status,
+      lastSeen: new Date() // Usar una fecha directa para mayor consistencia
+    });
+  } catch (error) {
+    console.error("[GLOBAL] Error updating online status:", error);
+  }
+};
+
+// Componente responsable únicamente del seguimiento de estado online
+function OnlineStatusTracker() {
+  const { user, userData } = useContext(AuthContext);
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!user) return;
+
+    const userId = user.uid;
+    const username = userData?.username || user.email?.split('@')[0];
+    
+    // Log de montaje del componente para debugging
+    console.log(`[OnlineTracker] Montado. Ruta: ${location.pathname}`);
+    
+    // Siempre establecer como online al montar (si la página está visible)
+    if (document.visibilityState === 'visible') {
+      console.log('[OnlineTracker] Estableciendo estado inicial: online');
+      updateOnlineStatus(userId, username, true);
+    }
+
+    // Verificar localStorage (para limpiar estado anterior si el navegador se cerró)
+    try {
+      const closingData = localStorage.getItem('user_closing');
+      if (closingData) {
+        const { userId: prevUserId } = JSON.parse(closingData);
+        if (prevUserId === userId) {
+          console.log('[OnlineTracker] Encontrado indicador de cierre previo, actualizando estado online');
+          updateOnlineStatus(userId, username, true); // Actualizar a online si se encuentra indicador
+        }
+        localStorage.removeItem('user_closing');
+      }
+    } catch (e) {
+      console.error("[OnlineTracker] Error checking localStorage:", e);
+    }
+    
+    // Actualización regular del estado online para evitar que caduque
+    const heartbeatInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        console.log('[OnlineTracker] Heartbeat: actualizando estado online');
+        updateOnlineStatus(userId, username, true);
+      }
+    }, 20000); // Cada 20 segundos
+    
+    // Manejar cambios de visibilidad de la página
+    const handleVisibilityChange = () => {
+      const isVisible = document.visibilityState === 'visible';
+      console.log(`[OnlineTracker] Cambio de visibilidad: ${isVisible ? 'visible' : 'oculto'}`);
+      updateOnlineStatus(userId, username, isVisible);
+    };
+    
+    // Manejar estado online/offline del navegador
+    const handleOnline = () => {
+      console.log('[OnlineTracker] Navegador online');
+      if (document.visibilityState === 'visible') {
+        updateOnlineStatus(userId, username, true);
+      }
+    };
+    
+    const handleOffline = () => {
+      console.log('[OnlineTracker] Navegador offline');
+      updateOnlineStatus(userId, username, false);
+    };
+    
+    // Manejar cierre de ventana/pestaña
+    const handleBeforeUnload = () => {
+      console.log('[OnlineTracker] beforeunload/pagehide detectado');
+      
+      // Usar localStorage como método principal (más confiable)
+      try {
+        localStorage.setItem('user_closing', JSON.stringify({
+          userId,
+          username,
+          timestamp: new Date().getTime()
+        }));
+      } catch (e) {
+        console.error("[OnlineTracker] Error setting localStorage:", e);
+      }
+      
+      // Intentar usar sendBeacon como respaldo
+      if (navigator.sendBeacon) {
+        const data = new Blob([JSON.stringify({ 
+          userId, 
+          username, 
+          status: false 
+        })], { type: 'application/json' });
+        navigator.sendBeacon('/api/update-offline', data);
+      }
+    };
+    
+    // Registrar todos los event listeners
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleBeforeUnload);
+    
+    // Cleanup function
+    return () => {
+      console.log('[OnlineTracker] Desmontando componente (NO debería ocurrir durante navegación normal)');
+      clearInterval(heartbeatInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handleBeforeUnload);
+      
+      // NO establecer como offline al desmontar - solo queremos hacer eso
+      // cuando el usuario realmente se desconecta, no durante la navegación
+    };
+  }, [user, userData]); // No incluir location.pathname para evitar re-ejecutar en cambios de ruta
+
+  // Log cuando cambia la ruta para depuración
+  useEffect(() => {
+    if (user) {
+      console.log(`[OnlineTracker] Cambio de ruta a: ${location.pathname}`);
+      // NO actualizar el estado aquí - solo para logging
+    }
+  }, [location.pathname, user]);
+
+  return null; // Este componente no renderiza nada
+}
 
 export default function App() {
-  /* useEffect(() => {
-    const notifKey = "notificacionesAceptadas";
-  
-    if (Notification.permission === "granted" || localStorage.getItem(notifKey)) {
-      return;
-    }
-  
-    if (Notification.permission !== "denied") {
-      const aceptar = confirm("¿Quieres habilitar notificaciones de mensajes?");
-      if (aceptar) {
-        Notification.requestPermission().then((permiso) => {
-          if (permiso === "granted") {
-            localStorage.setItem(notifKey, "true");
-          }
-        });
-      } else {
-        localStorage.setItem(notifKey, "rechazado");
+  // Gestionar permisos para notificaciones push
+  useEffect(() => {
+    const checkNotificationPermission = async () => {
+      if (!NotificationService.isSupported()) {
+        console.warn('Las notificaciones no están soportadas en este navegador');
+        return;
       }
-    }
-  }, []); */
 
-  // Componente interno para manejar el estado online/offline
-  const OnlineStatusManager = () => {
-    const { user, userData } = useContext(AuthContext);
+      const notifKey = "notificacionesAceptadas";
+      
+      // Verificar si ya hemos guardado la preferencia
+      if (localStorage.getItem(notifKey)) {
+        if (localStorage.getItem(notifKey) === 'true' && Notification.permission !== 'granted') {
+          // El usuario quiere notificaciones pero no las ha concedido en el navegador
+          const granted = await NotificationService.requestPermission();
+          if (granted) {
+            localStorage.setItem(notifKey, 'true');
+            NotificationService.savePreference(true);
+          }
+        } else if (localStorage.getItem(notifKey) === 'true') {
+          // Si ya tiene el permiso concedido, asegurarnos de guardar la preferencia
+          NotificationService.savePreference(true);
+        }
+        return;
+      }
 
-    useEffect(() => {
-      if (!user) return;
-      
-      const userId = user.uid;
-      const username = userData?.username || user.email?.split('@')[0];
-      
-      // Verificar y actualizar estado inicial
-      const updateInitialStatus = async () => {
-        try {
-          const userRef = doc(db, "users", userId);
-          const userSnap = await getDoc(userRef);
+      // Si es la primera vez, preguntar
+      if (Notification.permission !== 'denied') {
+        const aceptar = window.confirm("¿Quieres habilitar notificaciones de mensajes?");
+        if (aceptar) {
+          const granted = await NotificationService.requestPermission();
+          localStorage.setItem(notifKey, granted ? 'true' : 'rechazado');
+          NotificationService.savePreference(granted);
           
-          if (userSnap.exists()) {
-            const userData = userSnap.data();
-            const lastSeen = userData.lastSeen?.toDate();
-            
-            // Si el usuario estaba marcado como online pero no ha estado activo recientemente
-            if (userData.online === true && lastSeen && 
-                (new Date() - lastSeen) > (2 * 60 * 1000)) {
-              // Limpiar estado obsoleto
-              await updateDoc(userRef, { online: false });
-            }
+          // Mostrar una notificación de prueba si se concedió el permiso
+          if (granted) {
+            setTimeout(() => {
+              NotificationService.showNotification(
+                '¡Notificaciones activadas!',
+                {
+                  body: 'Recibirás notificaciones de nuevos mensajes incluso cuando estés en otra pestaña.',
+                  requireInteraction: false
+                }
+              );
+            }, 1000);
           }
-          
-          // Establecer como online si la página está visible
-          if (document.visibilityState === 'visible') {
-            updateOnlineStatus(userId, username, true);
-          }
-        } catch (error) {
-          console.error("Error updating initial status:", error);
+        } else {
+          localStorage.setItem(notifKey, 'rechazado');
+          NotificationService.savePreference(false);
         }
-      };
-      
-      updateInitialStatus();
-      
-      // Verificar localStorage al cargar (para limpiar estado anterior si el navegador se cerró)
-      const checkPreviousSession = () => {
-        try {
-          const closingData = localStorage.getItem('user_closing');
-          if (closingData) {
-            const { userId: prevUserId, timestamp } = JSON.parse(closingData);
-            
-            // Si es el mismo usuario y cerró recientemente
-            if (prevUserId === userId && 
-                (new Date().getTime() - timestamp) < (5 * 60 * 1000)) {
-              // Limpiar estado
-              updateOnlineStatus(userId, username, false);
-            }
-            
-            // Limpiar flag
-            localStorage.removeItem('user_closing');
-          }
-        } catch (e) {
-          console.error("Error checking previous session:", e);
-        }
-      };
-      
-      checkPreviousSession();
-      
-      // Heartbeat para mantener estado actualizado (cada 30 segundos)
-      const heartbeatInterval = setInterval(() => {
-        if (document.visibilityState === 'visible' && user) {
-          updateOnlineStatus(userId, username, true);
-        }
-      }, 30000);
-      
-      // Manejar cambios de visibilidad
-      const handleVisibilityChange = () => {
-        const isVisible = document.visibilityState === 'visible';
-        updateOnlineStatus(userId, username, isVisible);
-      };
-      
-      // Manejar online/offline del navegador
-      const handleOnline = () => {
-        if (document.visibilityState === 'visible') {
-          updateOnlineStatus(userId, username, true);
-        }
-      };
-      
-      const handleOffline = () => {
-        updateOnlineStatus(userId, username, false);
-      };
-      
-      // Marcar como offline al cerrar la ventana/pestaña
-      const handleBeforeUnload = () => {
-        // Usar sendBeacon para envío confiable antes del cierre
-        if (navigator.sendBeacon) {
-          const data = new Blob([JSON.stringify({ 
-            userId, 
-            username, 
-            status: false 
-          })], { type: 'application/json' });
-          navigator.sendBeacon('/api/update-offline', data);
-        }
-        
-        // Como respaldo, guardar flag en localStorage
-        try {
-          localStorage.setItem('user_closing', JSON.stringify({
-            userId,
-            username,
-            timestamp: new Date().getTime()
-          }));
-        } catch (e) {
-          console.error("Error setting localStorage flag:", e);
-        }
-      };
-      
-      // Registrar event listeners
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-      window.addEventListener('online', handleOnline);
-      window.addEventListener('offline', handleOffline);
-      window.addEventListener('beforeunload', handleBeforeUnload);
-      window.addEventListener('pagehide', handleBeforeUnload);
-      
-      // Función de limpieza
-      return () => {
-        clearInterval(heartbeatInterval);
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-        window.removeEventListener('online', handleOnline);
-        window.removeEventListener('offline', handleOffline);
-        window.removeEventListener('beforeunload', handleBeforeUnload);
-        window.removeEventListener('pagehide', handleBeforeUnload);
-        
-        // Marcar como offline al desmontar el componente
-        if (user) {
-          updateOnlineStatus(userId, username, false);
-        }
-      };
-    }, [user, userData]);
+      }
+    };
 
-    return null; // Este componente no renderiza nada
-  };
+    checkNotificationPermission();
+  }, []);
 
   return (
     <Router>
@@ -183,8 +220,8 @@ export default function App() {
         <div>
           <Navbar />
           
-          {/* Componente para gestionar estado online/offline */}
-          <OnlineStatusManager />
+          {/* Sistema de seguimiento de estado online global */}
+          <OnlineStatusTracker />
           
           <NotificationListener />
           <GroupNotificationListener />

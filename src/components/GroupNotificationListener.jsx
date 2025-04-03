@@ -1,5 +1,5 @@
 import { useContext, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { db } from "../firebase/config";
 import {
   collection,
@@ -10,11 +10,13 @@ import {
 } from "firebase/firestore";
 import { AuthContext } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { NotificationService } from "../utils/NotificationService";
 
 export default function GroupNotificationListener() {
   const { userData } = useContext(AuthContext);
   const { showToast } = useToast();
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!userData) return;
@@ -49,12 +51,13 @@ export default function GroupNotificationListener() {
           const data = last.data();
           const msgId = last.id;
 
-          // Verificar si ya estamos en el chat de este grupo pa lo metiche
+          // Verificar si ya estamos en el chat de este grupo
+          const isPageVisible = document.visibilityState === 'visible';
           const currentPath = location.pathname;
           const groupPath = `/chat/group/${groupId}`;
           
-          // Si estamos en el chat de este grupo, actualizar el último mensaje visto pero no mostrar notificación
-          if (currentPath === groupPath) {
+          // Si estamos en el chat de este grupo y la página está visible, actualizar el último mensaje visto pero no mostrar notificación
+          if (currentPath === groupPath && isPageVisible) {
             lastSeen[groupId] = msgId;
             localStorage.setItem(notifKey, JSON.stringify(lastSeen));
             return;
@@ -65,6 +68,7 @@ export default function GroupNotificationListener() {
             data.from !== userData.username &&
             (!lastNotif || lastNotif !== msgId)
           ) {
+            // Siempre mostrar el toast interno de la app
             showToast({
               username: `${data.from} • ${group.name}`,
               text: data.text || "📷 Imagen",
@@ -74,6 +78,23 @@ export default function GroupNotificationListener() {
               from: data.from // Usuario que envio el mensaje
             });
 
+            // Si el usuario ha habilitado notificaciones y la página no está enfocada o no estamos en el chat del grupo
+            if (NotificationService.isEnabled() && (!isPageVisible || currentPath !== groupPath)) {
+              const messageText = data.text || (data.image ? "📷 Imagen" : "");
+              NotificationService.showNotification(
+                `${data.from} en ${group.name}`,
+                {
+                  body: messageText,
+                  icon: data.photoURL || '/default-group.png', // Reemplaza con tu icono de grupo por defecto
+                  onClick: function() {
+                    window.focus();
+                    navigate(`/chat/group/${groupId}`);
+                    this.close();
+                  }
+                }
+              );
+            }
+
             lastSeen[groupId] = msgId;
             localStorage.setItem(notifKey, JSON.stringify(lastSeen));
           }
@@ -81,7 +102,6 @@ export default function GroupNotificationListener() {
 
         unsubMessageListeners.set(groupId, unsub);
       });
-
       
       unsubMessageListeners.forEach((unsub, id) => {
         if (!currentGroupIds.has(id)) {
@@ -95,7 +115,7 @@ export default function GroupNotificationListener() {
       unsubGroups();
       unsubMessageListeners.forEach((unsub) => unsub());
     };
-  }, [userData, showToast, location.pathname]); 
+  }, [userData, showToast, location.pathname, navigate]); 
 
   return null;
 }
