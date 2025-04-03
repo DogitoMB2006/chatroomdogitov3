@@ -1,10 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { MdNotifications, MdNotificationsOff, MdClose, MdInfo } from 'react-icons/md';
+import React, { useState, useEffect, useRef } from 'react';
+import { MdNotifications, MdNotificationsOff, MdClose, MdInfo, MdImage } from 'react-icons/md';
 
 export default function AlertNotifications() {
   const [show, setShow] = useState(false);
   const [animateOut, setAnimateOut] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageSrc, setImageSrc] = useState('');
+
+  // Posibles rutas para la imagen
+  const imageSources = [
+    '/assets/testing.jpg',
+    '/testing.jpg',
+    '/public/assets/testing.jpg',
+    './assets/testing.jpg'
+  ];
 
   useEffect(() => {
     // Verificar si las notificaciones están soportadas
@@ -31,6 +41,39 @@ export default function AlertNotifications() {
       setShow(true);
     }, 1500);
   }, []);
+
+  // Verificar si podemos cargar la imagen cuando se muestran las instrucciones
+  useEffect(() => {
+    if (!showInstructions) return;
+
+    // Función para probar cada posible ruta de imagen
+    const checkImage = async () => {
+      for (const src of imageSources) {
+        console.log(`Intentando cargar imagen desde: ${src}`);
+        
+        try {
+          // Verificar si la imagen existe
+          const response = await fetch(src);
+          
+          if (response.ok) {
+            console.log(`Imagen encontrada en: ${src}`);
+            setImageSrc(src);
+            setImageLoaded(true);
+            return; // Salir del bucle si encontramos una imagen válida
+          } else {
+            console.warn(`No se pudo cargar la imagen desde: ${src}`);
+          }
+        } catch (error) {
+          console.warn(`Error al verificar la imagen en: ${src}`, error);
+        }
+      }
+      
+      // Si llegamos aquí, ninguna fuente funcionó
+      console.error("No se pudo cargar la imagen desde ninguna fuente.");
+    };
+
+    checkImage();
+  }, [showInstructions]);
 
   // Función segura para cerrar el modal
   const safelyCloseModal = () => {
@@ -167,6 +210,30 @@ export default function AlertNotifications() {
                   Tu navegador ha bloqueado la solicitud automática de permisos. Sigue estos pasos para activar las notificaciones:
                 </p>
                 
+                {/* Imagen de instrucciones con fallback */}
+                <div className="w-full mb-6 rounded-lg overflow-hidden border border-gray-600">
+                  {imageLoaded ? (
+                    <img 
+                      src={imageSrc}
+                      alt="Guía para activar notificaciones" 
+                      className="w-full h-auto"
+                      onError={() => {
+                        console.error("Error al cargar la imagen");
+                        setImageLoaded(false);
+                      }}
+                    />
+                  ) : (
+                    <div className="bg-gray-700 p-8 flex flex-col items-center justify-center">
+                      <MdImage size={48} className="text-gray-500 mb-3" />
+                      <p className="text-gray-400 text-sm">
+                        Cargando imagen...
+                        <br />
+                        Si no aparece, sigue las instrucciones escritas debajo.
+                      </p>
+                    </div>
+                  )}
+                </div>
+                
                 <ol className="text-left text-gray-300 mb-6 space-y-2">
                   <li className="flex items-start gap-2">
                     <span className="bg-gray-700 rounded-full w-5 h-5 flex items-center justify-center text-xs mt-0.5">1</span>
@@ -181,13 +248,6 @@ export default function AlertNotifications() {
                     <span>Cambia la configuración a "Permitir" para este sitio</span>
                   </li>
                 </ol>
-                
-                <img 
-                  src="/notification-help.png" 
-                  alt="Ubicación del permiso de notificaciones" 
-                  className="w-full max-w-sm rounded-lg border border-gray-600 mb-6"
-                  onError={(e) => {e.target.style.display = 'none'}}
-                />
                 
                 <button
                   onClick={safelyCloseModal}
