@@ -43,7 +43,7 @@ export default function Login() {
         />
 
         <button type="submit" className="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded">
-          Entrar
+          Entra
         </button>
       </form>
     </div>
