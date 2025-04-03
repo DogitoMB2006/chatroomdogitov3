@@ -16,7 +16,7 @@ import FriendRequestListener from './components/FriendRequestListener';
 import { AuthContext } from "./context/AuthContext";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "./firebase/config";
-import { NotificationService } from './utils/NotificationService';
+import AlertNotifications from './components/AlertNotifications';
 
 // Función global para actualizar el estado online (fuera del componente)
 const updateOnlineStatus = async (userId, username, status) => {
@@ -158,67 +158,14 @@ function OnlineStatusTracker() {
 }
 
 export default function App() {
-  // Gestionar permisos para notificaciones push
-  useEffect(() => {
-    const checkNotificationPermission = async () => {
-      if (!NotificationService.isSupported()) {
-        console.warn('Las notificaciones no están soportadas en este navegador');
-        return;
-      }
-
-      const notifKey = "notificacionesAceptadas";
-      
-      // Verificar si ya hemos guardado la preferencia
-      if (localStorage.getItem(notifKey)) {
-        if (localStorage.getItem(notifKey) === 'true' && Notification.permission !== 'granted') {
-          // El usuario quiere notificaciones pero no las ha concedido en el navegador
-          const granted = await NotificationService.requestPermission();
-          if (granted) {
-            localStorage.setItem(notifKey, 'true');
-            NotificationService.savePreference(true);
-          }
-        } else if (localStorage.getItem(notifKey) === 'true') {
-          // Si ya tiene el permiso concedido, asegurarnos de guardar la preferencia
-          NotificationService.savePreference(true);
-        }
-        return;
-      }
-
-      // Si es la primera vez, preguntar
-      if (Notification.permission !== 'denied') {
-        const aceptar = window.confirm("¿Quieres habilitar notificaciones de mensajes?");
-        if (aceptar) {
-          const granted = await NotificationService.requestPermission();
-          localStorage.setItem(notifKey, granted ? 'true' : 'rechazado');
-          NotificationService.savePreference(granted);
-          
-          // Mostrar una notificación de prueba si se concedió el permiso
-          if (granted) {
-            setTimeout(() => {
-              NotificationService.showNotification(
-                '¡Notificaciones activadas!',
-                {
-                  body: 'Recibirás notificaciones de nuevos mensajes incluso cuando estés en otra pestaña.',
-                  requireInteraction: false
-                }
-              );
-            }, 1000);
-          }
-        } else {
-          localStorage.setItem(notifKey, 'rechazado');
-          NotificationService.savePreference(false);
-        }
-      }
-    };
-
-    checkNotificationPermission();
-  }, []);
-
   return (
     <Router>
       <ToastProvider>
         <div>
           <Navbar />
+          
+          {/* Componente de alerta para notificaciones */}
+          <AlertNotifications />
           
           {/* Sistema de seguimiento de estado online global */}
           <OnlineStatusTracker />
