@@ -22,7 +22,7 @@ import {
   deleteObject
 } from "firebase/storage";
 import { format } from "date-fns";
-import { MdImage, MdDelete } from "react-icons/md"; // Asegúrate de importar el ícono
+import { MdImage, MdDelete, MdReply } from "react-icons/md"; // Añadido MdReply
 
 export default function MessageHandler({ receiver }) {
   const { userData } = useContext(AuthContext);
@@ -32,6 +32,7 @@ export default function MessageHandler({ receiver }) {
   const [receiverData, setReceiverData] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
   const scrollRef = useRef();
+  const [replyTo, setReplyTo] = useState(null);
 
   useEffect(() => {
     const getReceiverData = async () => {
@@ -76,10 +77,10 @@ export default function MessageHandler({ receiver }) {
 
       setMessages(filtered);
 
-// Auto-scroll al último mensaje al cargar
-setTimeout(() => {
-  scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-}, 100);
+      // Auto-scroll al último mensaje al cargar
+      setTimeout(() => {
+        scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
 
     });
 
@@ -88,15 +89,15 @@ setTimeout(() => {
 
   const sendMessage = async () => {
     if (text.trim() === '' && !image) return;
-
+  
     let imageUrl = null;
-
+  
     if (image) {
       const imageRef = ref(storage, `chatImages/${Date.now()}-${image.name}`);
       await uploadBytes(imageRef, image);
       imageUrl = await getDownloadURL(imageRef);
     }
-
+  
     await addDoc(collection(db, "messages"), {
       from: userData.username,
       to: receiver,
@@ -104,14 +105,16 @@ setTimeout(() => {
       image: imageUrl,
       timestamp: serverTimestamp(),
       participants: [userData.username, receiver],
-      read: false
+      read: false,
+      replyTo: replyTo ? { from: replyTo.from, text: replyTo.text } : null
     });
-
+  
     setText('');
     setImage(null);
+    setReplyTo(null);
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-
+  
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') sendMessage();
   };
@@ -151,13 +154,13 @@ setTimeout(() => {
         {messages.map((msg, idx) => {
           const isMine = msg.from === userData.username;
           const photoURL = isMine ? userData?.photoURL : receiverData?.photoURL;
-
+          
           return (
             <div
               key={msg.id || idx}
               className={`flex items-end gap-2 ${
                 isMine ? 'justify-end' : 'justify-start'
-              }`}
+              } group`}
             >
               {!isMine && (
                 <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-300 flex-shrink-0">
@@ -170,21 +173,17 @@ setTimeout(() => {
               )}
 
               <div
-                className={`max-w-[75%] px-3 py-2 rounded-lg relative group
+                className={`max-w-[75%] px-3 py-2 rounded-lg relative
                   ${isMine
                     ? 'bg-blue-500 text-white'
                     : 'bg-gray-200 text-black'
                   }`}
               >
-                {/* Eliminar icono si soy yo */}
-                {isMine && (
-                  <button
-                    onClick={() => handleDelete(msg)}
-                    className="absolute top-1 right-1 text-white text-sm bg-red-500 hover:bg-red-700 p-1 rounded-full opacity-0 group-hover:opacity-100 transition"
-                    title="Eliminar mensaje"
-                  >
-                    <MdDelete />
-                  </button>
+                {/* Mensaje al que se responde */}
+                {msg.replyTo && (
+                  <div className="text-xs italic border-l-2 pl-2 mb-1 opacity-75">
+                    <span className="font-semibold">{msg.replyTo.from}:</span> "{msg.replyTo.text}"
+                  </div>
                 )}
 
                 {msg.image && (
@@ -225,6 +224,27 @@ setTimeout(() => {
                 )}
               </div>
 
+              {/* Botones de acción al lado del texto */}
+              <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition">
+                <button
+                  onClick={() => setReplyTo({ from: msg.from, text: msg.text || (msg.image ? "[Imagen]" : "") })}
+                  className="bg-blue-100 text-blue-700 p-1 rounded hover:bg-blue-200"
+                  title="Responder"
+                >
+                  <MdReply size={16} />
+                </button>
+                
+                {isMine && (
+                  <button
+                    onClick={() => handleDelete(msg)}
+                    className="bg-red-100 text-red-700 p-1 rounded hover:bg-red-200"
+                    title="Eliminar mensaje"
+                  >
+                    <MdDelete size={16} />
+                  </button>
+                )}
+              </div>
+
               {isMine && (
                 <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-300 flex-shrink-0">
                   {photoURL ? (
@@ -239,6 +259,21 @@ setTimeout(() => {
         })}
         <div ref={scrollRef}></div>
       </div>
+
+      {/* Mensaje de respuesta justo arriba del input */}
+      {replyTo && (
+        <div className="bg-gray-100 border-l-4 border-blue-500 px-3 py-2 mx-2 mt-2 mb-1 text-sm rounded flex justify-between items-center">
+          <div>
+            Respondiendo a <strong>{replyTo.from}</strong>: "{replyTo.text}"
+          </div>
+          <button
+            onClick={() => setReplyTo(null)}
+            className="text-red-500 text-xs hover:underline"
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
 
       {/* Entrada de texto */}
       <div className="border-t p-2 flex flex-col gap-2">

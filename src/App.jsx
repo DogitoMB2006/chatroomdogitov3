@@ -10,6 +10,9 @@ import PrivateChat from "./pages/PrivateChat";
 import EditProfile from "./pages/EditProfile";
 import NotificationListener from './components/NotificationListener';
 import { ToastProvider } from "./context/ToastContext";
+import GroupChatPage from "./pages/groupchatpage";
+import GroupNotificationListener from "./components/GroupNotificationListener";
+
 export default function App() {
   /* useEffect(() => {
     const notifKey = "notificacionesAceptadas";
@@ -39,6 +42,8 @@ export default function App() {
       <div>
         <Navbar />
         <NotificationListener />
+        <GroupNotificationListener />
+
         
         <Routes>
           <Route path="/" element={<Home />} />
@@ -47,6 +52,7 @@ export default function App() {
           <Route path="/chat" element={<Chats />} />
           <Route path="/chat/:username" element={<PrivateChat />} />
           <Route path="/editprofile" element={<EditProfile />} />
+          <Route path="/chat/group/:groupId" element={<GroupChatPage />} />
         </Routes>
         
       </div>
