@@ -87,26 +87,40 @@ export default function FriendRequests() {
             ) : (
               <ul className="space-y-3">
                 {requests.map((req) => (
-                  <li
-                    key={req.id}
-                    className="flex justify-between items-center bg-gray-100 p-2 rounded"
-                  >
-                    <span>{req.from}</span>
-                    <div className="space-x-2">
-                      <button
-                        onClick={() => handleAccept(req)}
-                        className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-sm"
-                      >
-                        Aceptar
-                      </button>
-                      <button
-                        onClick={() => handleReject(req)}
-                        className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-sm"
-                      >
-                        Rechazar
-                      </button>
-                    </div>
-                  </li>
+                <li
+                key={req.id}
+                className="flex justify-between items-center bg-gray-100 p-2 rounded gap-3"
+              >
+                {/* Imagen de perfil */}
+                <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-300 flex-shrink-0">
+                  {req.photoURL ? (
+                    <img src={req.photoURL} alt="avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-sm text-gray-500">😶</div>
+                  )}
+                </div>
+              
+                {/* Nombre y botones */}
+                <div className="flex justify-between items-center w-full">
+                  <span>{req.from}</span>
+                  <div className="space-x-2">
+                    <button
+                      onClick={() => handleAccept(req)}
+                      className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-sm"
+                    >
+                      Aceptar
+                    </button>
+                    <button
+                      onClick={() => handleReject(req)}
+                      className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-sm"
+                    >
+                      Rechazar
+                    </button>
+                  </div>
+                </div>
+              </li>
+              
+                
                 ))}
               </ul>
             )}
