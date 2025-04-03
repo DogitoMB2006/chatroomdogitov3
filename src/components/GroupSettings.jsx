@@ -52,7 +52,7 @@ export default function GroupSettings({ groupId, groupInfo, onChange }) {
 
     await updateDoc(groupRef, { miembros: updated });
 
-    // Callback opcional para refrescar
+
     onChange && onChange();
   };
 
@@ -141,10 +141,10 @@ export default function GroupSettings({ groupId, groupInfo, onChange }) {
                     if (!confirm) return;
 
                     try {
-                      // Eliminar grupo
+                  
                       await deleteDoc(doc(db, "groups", groupId));
 
-                      // Eliminar todos los mensajes del grupo
+                      // eto es pa Eliminar todos los mensajes del grupo
                       const q = query(collection(db, "groupMessages", groupId, "messages"));
                       const snapshot = await getDocs(q);
                       const batch = writeBatch(db);

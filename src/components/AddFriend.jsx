@@ -39,14 +39,14 @@ export default function AddFriend({ className }) {
     }
 
     try {
-      // 1. Si el usuario es uno mismo
+    
       if (username === userData.username) {
         setError("No puedes agregarte a ti mismo");
         setLoading(false);
         return;
       }
 
-      // 2. Verificar si el usuario existe
+ 
       const q = query(
         collection(db, "users"),
         where("username", "==", username)
@@ -59,14 +59,14 @@ export default function AddFriend({ className }) {
         return;
       }
 
-      // 3. Verificar si ya son amigos
+
       if (userData.friends && userData.friends.includes(username)) {
         setError("Ya son amigos");
         setLoading(false);
         return;
       }
 
-      // 4. Verificar si ya hay una solicitud pendiente
+  
       const q2 = query(
         collection(db, "friendRequests"),
         where("from", "==", userData.username),
@@ -81,7 +81,6 @@ export default function AddFriend({ className }) {
         return;
       }
 
-      // 5. Enviar solicitud - Corregimos el problema con photoURL undefined
       const requestData = {
         from: userData.username,
         to: username,
@@ -89,7 +88,7 @@ export default function AddFriend({ className }) {
         timestamp: serverTimestamp()
       };
       
-      // Solo añadimos photoURL si existe
+
       if (userData.photoURL) {
         requestData.photoURL = userData.photoURL;
       }
@@ -106,7 +105,6 @@ export default function AddFriend({ className }) {
     }
   };
 
-  // Si se proporciona una clase personalizada, renderizar como botón flotante
   if (className) {
     return (
       <>
@@ -167,7 +165,7 @@ export default function AddFriend({ className }) {
     );
   }
 
-  // Renderizado normal (cuando no se proporciona clase personalizada)
+  
   return (
     <div className="text-center">
       <button

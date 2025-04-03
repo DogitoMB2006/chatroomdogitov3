@@ -19,28 +19,28 @@ export default function FriendRequestListener() {
   useEffect(() => {
     if (!userData) return;
 
-    // Consulta para escuchar solicitudes de amistad pendientes en tiempo real
+
     const q = query(
       collection(db, "friendRequests"),
       where("to", "==", userData.username),
       where("status", "==", "pending"),
-      orderBy("timestamp", "desc") // Si tienes un campo timestamp
+      orderBy("timestamp", "desc") 
     );
 
     const unsub = onSnapshot(q, async (snapshot) => {
-      // Obtener solicitudes recién añadidas
+     
       const newRequests = snapshot.docChanges().filter(change => change.type === "added");
 
       for (const change of newRequests) {
         const requestId = change.doc.id;
         
-        // Evitar procesar solicitudes ya notificadas
+       
         if (processedRequestsRef.current.has(requestId)) continue;
         processedRequestsRef.current.add(requestId);
         
         const requestData = change.doc.data();
         
-        // Obtener datos del remitente para mostrar su foto
+        
         const senderQuery = query(
           collection(db, "users"),
           where("username", "==", requestData.from)
@@ -49,7 +49,7 @@ export default function FriendRequestListener() {
         const senderSnap = await getDocs(senderQuery);
         const senderData = !senderSnap.empty ? senderSnap.docs[0].data() : null;
         
-        // Mostrar notificación toast para la solicitud
+       
         showToast({
           type: "friendRequest",
           username: requestData.from,
@@ -66,5 +66,5 @@ export default function FriendRequestListener() {
     return () => unsub();
   }, [userData, showToast]);
 
-  return null; // Componente sin renderizado
+  return null; 
 }

@@ -48,7 +48,7 @@ export default function Navbar() {
         </Link>
       </div>
 
-      {/* Desktop Navigation Links */}
+    
       <div className="hidden md:flex items-center space-x-6">
         <Link to="/" className={`flex items-center gap-1 hover:text-indigo-400 transition-colors ${isActive('/')}`}>
           <MdHome size={20} />
@@ -77,21 +77,21 @@ export default function Navbar() {
         )}
       </div>
 
-      {/* User Profile and Actions */}
+
       <div className="flex items-center space-x-3">
         {user && (
           <>
-            {/* Notification bell */}
+          
             <button className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-800">
               <MdNotifications size={20} />
             </button>
             
-            {/* Settings */}
+           
             <button className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-800">
               <MdSettings size={20} />
             </button>
             
-            {/* Profile dropdown */}
+        
             <div className="relative">
               <div
                 onClick={toggleUserMenu}
@@ -111,7 +111,7 @@ export default function Navbar() {
                 )}
               </div>
               
-              {/* User dropdown menu */}
+           
               {userMenuOpen && (
                 <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-md shadow-lg overflow-hidden z-20 animate-fade-in-down">
                   <div className="px-4 py-3 border-b border-gray-700">
@@ -150,7 +150,7 @@ export default function Navbar() {
           </>
         )}
 
-        {/* Mobile menu button */}
+       
         <button
           className="md:hidden text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-800"
           onClick={toggleMobileMenu}
@@ -159,7 +159,7 @@ export default function Navbar() {
         </button>
       </div>
 
-      {/* Mobile Navigation Menu */}
+   
       {mobileMenuOpen && (
         <div className="md:hidden fixed inset-0 top-14 bg-gray-900 z-10 animate-fade-in-down">
           <div className="flex flex-col p-4 space-y-4">

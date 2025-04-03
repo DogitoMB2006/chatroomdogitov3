@@ -17,9 +17,9 @@ export default function ViewProfile({ username, onClose }) {
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [friendStatus, setFriendStatus] = useState("none"); // none, friends, pending, sending
+  const [friendStatus, setFriendStatus] = useState("none"); 
   
-  // Obtener datos del perfil
+
   useEffect(() => {
     const fetchProfileData = async () => {
       setLoading(true);
@@ -91,7 +91,7 @@ export default function ViewProfile({ username, onClose }) {
         timestamp: serverTimestamp()
       };
       
-      // Solo añadimos photoURL si existe
+   
       if (userData.photoURL) {
         requestData.photoURL = userData.photoURL;
       }
@@ -112,7 +112,7 @@ export default function ViewProfile({ username, onClose }) {
         className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-full max-w-sm mx-4"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Botón de cerrar */}
+       
         <button 
           onClick={onClose}
           className="absolute top-2 right-2 text-gray-400 hover:text-white p-1 rounded-full"
@@ -137,10 +137,10 @@ export default function ViewProfile({ username, onClose }) {
           </div>
         ) : profileData && (
           <>
-            {/* Encabezado con fondo gradiente */}
+          
             <div className="h-24 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-t-lg"></div>
             
-            {/* Contenido del perfil */}
+           
             <div className="flex flex-col items-center px-6 pb-6 -mt-12">
               {/* Foto de perfil */}
               <div className="w-24 h-24 rounded-full border-4 border-gray-800 overflow-hidden bg-gray-700">
@@ -155,13 +155,13 @@ export default function ViewProfile({ username, onClose }) {
                 )}
               </div>
               
-              {/* Nombre de usuario con badge */}
+             
               <div className="mt-3 flex items-center">
                 <h2 className="text-xl font-semibold text-white">{username}</h2>
                 <Staff username={username} />
               </div>
               
-              {/* Información adicional */}
+             
               <p className="text-gray-400 text-sm mt-2">
                 Se unió en {profileData.joinDate ? new Date(profileData.joinDate.toDate()).toLocaleDateString() : "fecha desconocida"}
               </p>
@@ -171,7 +171,7 @@ export default function ViewProfile({ username, onClose }) {
                 <span>{profileData.friends?.length || 0} amigos</span>
               </div>
               
-              {/* Botón de acción según el estado */}
+              
               <div className="mt-6 w-full">
                 {friendStatus === "friends" ? (
                   <div className="flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md">

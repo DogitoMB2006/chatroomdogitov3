@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 export default function Home() {
   const navigate = useNavigate();
   
-  // Array de updates para mostrar (ejemplo)
   const [updates, setUpdates] = useState([
     {
       id: 1,
@@ -47,7 +46,7 @@ export default function Home() {
     }
   ]);
 
-  // Efecto para animación de entrada
+
   useEffect(() => {
     const animateUpdates = () => {
       const updateElements = document.querySelectorAll('.update-card');
@@ -65,7 +64,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 py-16 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
-        {/* Encabezado */}
+        
         <div className="text-center mb-16">
           <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600 mb-4">
           DogiCord Updates
@@ -75,7 +74,7 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Lista de updates */}
+        
         <div className="space-y-8">
           {updates.map((update, index) => (
             <div 
@@ -109,7 +108,7 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Footer */}
+
         <div className="mt-16 text-center">
           <button 
             onClick={() => navigate('/chat')}

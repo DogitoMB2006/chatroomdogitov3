@@ -43,7 +43,7 @@ export default function App() {
         <div>
           <Navbar />
           
-          {/* Componentes de escucha de notificaciones */}
+        
           <NotificationListener />
           <GroupNotificationListener />
           <FriendRequestListener />

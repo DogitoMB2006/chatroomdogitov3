@@ -43,9 +43,8 @@ export default function MessageHandler({ receiver }) {
   const [replyTo, setReplyTo] = useState(null);
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
-  const isMountedRef = useRef(true); // Para evitar actualizar estado después de desmontar
+  const isMountedRef = useRef(true); 
 
-  // Obtener datos del receptor
   useEffect(() => {
     const getReceiverData = async () => {
       const q = query(collection(db, "users"), where("username", "==", receiver));
@@ -57,13 +56,13 @@ export default function MessageHandler({ receiver }) {
     getReceiverData();
   }, [receiver]);
 
-  // Marcar mensajes como leídos inmediatamente al entrar al chat
+
   useEffect(() => {
     const markMessagesAsRead = async () => {
       if (!userData || !receiver) return;
 
       try {
-        // Consulta todos los mensajes no leídos enviados por el receptor
+        
         const messagesRef = collection(db, "messages");
         const q = query(
           messagesRef,
@@ -75,7 +74,6 @@ export default function MessageHandler({ receiver }) {
         const snapshot = await getDocs(q);
         
         if (!snapshot.empty) {
-          // Usar batch para actualizar múltiples documentos eficientemente
           const batch = writeBatch(db);
           
           snapshot.docs.forEach((docSnapshot) => {
@@ -93,7 +91,7 @@ export default function MessageHandler({ receiver }) {
     markMessagesAsRead();
   }, [userData, receiver]);
 
-  // Cargar mensajes y mantener listener
+
   useEffect(() => {
     if (!userData) return;
 
@@ -116,7 +114,7 @@ export default function MessageHandler({ receiver }) {
           (data.from === receiver && data.to === userData.username);
 
         if (isBetween) {
-          // Si el mensaje es no leído y es para mí, añadirlo a la lista para marcar como leído
+        
           if (data.to === userData.username && !data.read) {
             unreadMessages.push(docSnap.id);
           }

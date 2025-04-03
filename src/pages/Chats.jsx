@@ -47,7 +47,7 @@ export default function Chats() {
     }
   }, [userData]);
 
-  // Obtener grupos
+  // Obtener grupos <---- 
   useEffect(() => {
     if (!userData) return;
 
@@ -65,7 +65,7 @@ export default function Chats() {
     return () => unsub();
   }, [userData]);
   
-  // Obtener solicitudes de amistad pendientes
+  // Obtener solicitudes de amistad pendientes <--- que pique eto
   useEffect(() => {
     if (!userData) return;
 
@@ -87,11 +87,11 @@ export default function Chats() {
     return () => unsub();
   }, [userData]);
 
-  // Obtener mensajes no leídos y últimos mensajes en tiempo real
+  // Obtener mensajes no leídos y últimos mensajes en tiempo real para eso funciona
   useEffect(() => {
     if (!userData) return;
     
-    // Objeto para almacenar los unsubscribe de los listeners
+    // Objeto para almacenar los unsubscribe de los listeners <----
     const unsubscribers = [];
     
     // Listener para mensajes privados
@@ -118,7 +118,7 @@ export default function Chats() {
         }
         newUnreadCounts[from]++;
         
-        // Actualizar último mensaje si es más reciente
+        // Actualizar último mensaje si es más reciente dure mas que el diablo
         if (!newLastMessages[from] || 
             (msg.timestamp && 
             (!newLastMessages[from].timestamp || 
@@ -137,7 +137,7 @@ export default function Chats() {
     
     unsubscribers.push(unsubMessages);
 
-    // Para cada amigo, obtener el último mensaje (leído o no)
+    // Para cada amigo, obtener el último mensaje (leido o no)
     friends.forEach(friend => {
       const lastMsgQuery = query(
         messagesRef,
@@ -160,7 +160,7 @@ export default function Chats() {
           if (isBetween) {
             const username = msgData.from === userData.username ? msgData.to : msgData.from;
             
-            // Actualizar último mensaje si es más reciente
+            // Actualizar ultimo mensaje si es más reciente
             if (!newLastMessages[username] || 
                 (msgData.timestamp && 
                 (!newLastMessages[username].timestamp || 
@@ -181,7 +181,7 @@ export default function Chats() {
       unsubscribers.push(unsubLastMsg);
     });
 
-    // Para grupos, obtener último mensaje y actualizaciones en tiempo real
+    // Para grupos, obtener ultimo mensaje y actualizaciones en tiempo real
     groups.forEach(group => {
       const msgsRef = collection(db, "groupMessages", group.id, "messages");
       const groupLastMsgQuery = query(msgsRef, orderBy("timestamp", "desc"), limit(1));
@@ -196,7 +196,7 @@ export default function Chats() {
             text: msgData.text || (msgData.image ? "📷 Imagen" : ""),
             timestamp: msgData.timestamp,
             from: msgData.from,
-            // Determinar si es no leído (esto requeriría lógica adicional en el grupo)
+            // Determinar si es no leído 
             unread: msgData.from !== userData.username
           };
           
@@ -222,7 +222,7 @@ export default function Chats() {
     group.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Función para formatear la fecha relativa (ej: "hace 5 min", "hoy a las 10:30")
+  // 
   const formatRelativeTime = (timestamp) => {
     if (!timestamp) return "";
     
@@ -232,15 +232,15 @@ export default function Chats() {
     const diffInHours = Math.floor(diffInMinutes / 60);
     const diffInDays = Math.floor(diffInHours / 24);
     
-    // Mismo día, menos de 1 minuto
+    
     if (diffInMinutes < 1) {
       return "ahora";
     }
-    // Mismo día, menos de 1 hora
+    
     else if (diffInMinutes < 60) {
       return `hace ${diffInMinutes} min`;
     }
-    // Mismo día, más de 1 hora
+   
     else if (diffInHours < 24 && messageDate.getDate() === now.getDate()) {
       return messageDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     }
@@ -248,12 +248,12 @@ export default function Chats() {
     else if (diffInDays === 1) {
       return "ayer";
     }
-    // Hace menos de una semana
+  
     else if (diffInDays < 7) {
       const days = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
       return days[messageDate.getDay()];
     }
-    // Más de una semana
+
     else {
       return messageDate.toLocaleDateString([], { day: 'numeric', month: 'numeric' });
     }
@@ -261,19 +261,18 @@ export default function Chats() {
 
   // Verificar si un amigo está en línea (simulado)
   const isOnline = (username) => {
-    // Aquí podrías implementar lógica real para detectar si está en línea
-    return Math.random() > 0.5; // Simulación para el ejemplo
+    return Math.random() > 0.5; // eto lo hare mas adelante
   };
 
-  // Manejar aceptar solicitud de amistad
+
   const handleAcceptFriendRequest = async (req) => {
     try {
       const requestRef = doc(db, "friendRequests", req.id);
       
-      // 1. Marcar como aceptado
+  
       await updateDoc(requestRef, { status: "accepted" });
 
-      // 2. Agregar a ambos en sus listas de amigos
+     
       const usersRef = collection(db, "users");
 
       const q1 = query(usersRef, where("username", "==", userData.username));
@@ -301,7 +300,7 @@ export default function Chats() {
     }
   };
 
-  // Manejar rechazar solicitud de amistad
+
   const handleRejectFriendRequest = async (req) => {
     try {
       await deleteDoc(doc(db, "friendRequests", req.id));
@@ -312,9 +311,9 @@ export default function Chats() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-900 text-gray-100">
-      {/* No utilizamos header aquí ya que tenemos Navbar */}
+      {/*  */}
 
-      {/* Búsqueda */}
+      {/**/}
       <div className="p-4 border-b border-gray-800">
         <div className="relative">
           <MdSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -328,7 +327,7 @@ export default function Chats() {
         </div>
       </div>
 
-      {/* Pestañas */}
+      {/*  */}
       <div className="flex border-b border-gray-800">
         <button
           onClick={() => setSelectedTab("friends")}
@@ -461,9 +460,9 @@ export default function Chats() {
         )}
       </div>
 
-      {/* Acciones flotantes */}
+      {/*  */}
       <div className="fixed bottom-6 right-6 flex flex-col gap-3">
-        {/* Botón de notificaciones de solicitudes de amistad */}
+        {/* */}
         <button
           onClick={() => setShowFriendRequestsModal(true)}
           className="relative bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg rounded-full p-3"
@@ -485,7 +484,7 @@ export default function Chats() {
         )}
       </div>
 
-      {/* Modal de solicitudes de amistad */}
+     
       {showFriendRequestsModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
           <div className="bg-gray-800 border border-gray-700 p-6 rounded-lg w-full max-w-md shadow-lg">
@@ -500,7 +499,7 @@ export default function Chats() {
                     key={req.id}
                     className="flex items-center gap-3 bg-gray-700 p-3 rounded"
                   >
-                    {/* Imagen de perfil */}
+                  
                     <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-600 flex-shrink-0">
                       {req.photoURL ? (
                         <img src={req.photoURL} alt="avatar" className="w-full h-full object-cover" />
@@ -509,7 +508,6 @@ export default function Chats() {
                       )}
                     </div>
                   
-                    {/* Nombre y botones */}
                     <div className="flex justify-between items-center w-full">
                       <span className="text-gray-200">{req.from}</span>
                       <div className="space-x-2">

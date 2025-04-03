@@ -31,10 +31,10 @@ export default function FriendRequests() {
   const handleAccept = async (req) => {
     const ref = doc(db, "friendRequests", req.id);
 
-    // 1. Marcar como aceptado
+
     await updateDoc(ref, { status: "accepted" });
 
-    // 2. Agregar a ambos en sus listas de amigos
+
     const usersRef = collection(db, "users");
 
     const q1 = query(usersRef, where("username", "==", userData.username));
@@ -57,7 +57,7 @@ export default function FriendRequests() {
         friends: [...new Set([...senderFriends, userData.username])]
       });
 
-      fetchRequests(); // refrescar solicitudes
+      fetchRequests(); 
     }
   };
 
@@ -68,7 +68,7 @@ export default function FriendRequests() {
 
   return (
     <div className="text-center">
-      {/* Icono de buzón */}
+    
       <button
         onClick={() => setShowModal(true)}
         className="mt-2 text-blue-600 hover:text-blue-800 flex items-center justify-center gap-1"
@@ -76,7 +76,7 @@ export default function FriendRequests() {
         <FaInbox /> Ver solicitudes
       </button>
 
-      {/* Modal */}
+      
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
           <div className="bg-white p-6 rounded w-full max-w-md shadow">
@@ -91,7 +91,7 @@ export default function FriendRequests() {
                 key={req.id}
                 className="flex justify-between items-center bg-gray-100 p-2 rounded gap-3"
               >
-                {/* Imagen de perfil */}
+             
                 <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-300 flex-shrink-0">
                   {req.photoURL ? (
                     <img src={req.photoURL} alt="avatar" className="w-full h-full object-cover" />
@@ -100,7 +100,7 @@ export default function FriendRequests() {
                   )}
                 </div>
               
-                {/* Nombre y botones */}
+              
                 <div className="flex justify-between items-center w-full">
                   <span>{req.from}</span>
                   <div className="space-x-2">

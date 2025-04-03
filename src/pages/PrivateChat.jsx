@@ -22,7 +22,7 @@ export default function PrivateChat() {
   const [receiverData, setReceiverData] = useState(null);
   const [showUserInfo, setShowUserInfo] = useState(false);
 
-  // Obtener datos del receptor
+ 
   useEffect(() => {
     const fetchReceiverData = async () => {
       const q = query(collection(db, "users"), where("username", "==", username));
@@ -39,7 +39,7 @@ export default function PrivateChat() {
   useEffect(() => {
     if (!userData) return;
 
-    // Consulta para obtener mensajes no leídos de este remitente
+   
     const messagesRef = collection(db, "messages");
     const q = query(
       messagesRef,
@@ -49,15 +49,15 @@ export default function PrivateChat() {
       orderBy("timestamp", "desc")
     );
 
-    // Escuchar cambios en tiempo real y marcar como leídos
+   
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-      // Marcar todos los mensajes como leídos
+
       const batch = [];
       for (const docSnap of snapshot.docs) {
         batch.push(updateDoc(doc(db, "messages", docSnap.id), { read: true }));
       }
       
-      // Si hay mensajes para actualizar, ejecutar todas las actualizaciones
+  
       if (batch.length > 0) {
         await Promise.all(batch);
         console.log(`Marcados ${batch.length} mensajes como leídos`);
@@ -77,7 +77,7 @@ export default function PrivateChat() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-900 text-gray-100">
-      {/* Header */}
+  
       <header className="bg-gray-800 px-4 py-2 shadow-md flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <button 
@@ -134,16 +134,16 @@ export default function PrivateChat() {
         </div>
       </header>
 
-      {/* Main content */}
+    
       <div className="flex flex-1 overflow-hidden">
-        {/* Messages area */}
+      
         <div className="flex-1 flex flex-col">
           <div className="flex-1 overflow-y-auto bg-gray-850 px-2">
             <MessageHandler receiver={username} />
           </div>
         </div>
         
-        {/* User info sidebar - only shows when toggled */}
+   
         {showUserInfo && (
           <div className="w-64 bg-gray-800 shadow-lg border-l border-gray-700 overflow-y-auto hidden md:block p-4 animate-fade-in-down">
             <h3 className="font-medium text-lg mb-4">Información de usuario</h3>

@@ -22,7 +22,7 @@ export default function GroupNotificationListener() {
     const notifKey = "group_last_notif";
     const lastSeen = JSON.parse(localStorage.getItem(notifKey) || "{}");
 
-    const unsubMessageListeners = new Map(); // para evitar duplicados
+    const unsubMessageListeners = new Map(); 
 
     const q = query(
       collection(db, "groups"),
@@ -36,7 +36,7 @@ export default function GroupNotificationListener() {
         const groupId = groupDoc.id;
         currentGroupIds.add(groupId);
 
-        if (unsubMessageListeners.has(groupId)) return; // ya estamos escuchando
+        if (unsubMessageListeners.has(groupId)) return; 
 
         const group = groupDoc.data();
         const msgsRef = collection(db, "groupMessages", groupId, "messages");
@@ -49,7 +49,7 @@ export default function GroupNotificationListener() {
           const data = last.data();
           const msgId = last.id;
 
-          // Verificar si ya estamos en el chat de este grupo
+          // Verificar si ya estamos en el chat de este grupo pa lo metiche
           const currentPath = location.pathname;
           const groupPath = `/chat/group/${groupId}`;
           
@@ -71,7 +71,7 @@ export default function GroupNotificationListener() {
               photoURL: data.photoURL || null,
               type: "group", // Indicar que es un chat de grupo
               chatId: groupId, // ID del grupo para la navegación
-              from: data.from // Usuario que envió el mensaje
+              from: data.from // Usuario que envio el mensaje
             });
 
             lastSeen[groupId] = msgId;
@@ -82,7 +82,7 @@ export default function GroupNotificationListener() {
         unsubMessageListeners.set(groupId, unsub);
       });
 
-      // 🔁 Eliminar listeners de grupos eliminados o abandonados
+      
       unsubMessageListeners.forEach((unsub, id) => {
         if (!currentGroupIds.has(id)) {
           unsub();
@@ -95,7 +95,7 @@ export default function GroupNotificationListener() {
       unsubGroups();
       unsubMessageListeners.forEach((unsub) => unsub());
     };
-  }, [userData, showToast, location.pathname]); // Añadir location.pathname como dependencia
+  }, [userData, showToast, location.pathname]); 
 
   return null;
 }

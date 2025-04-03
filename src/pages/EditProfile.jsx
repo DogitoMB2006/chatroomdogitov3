@@ -45,7 +45,7 @@ export default function EditProfile() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-900 text-gray-100">
-      {/* Header */}
+    
       <div className="bg-gray-800 p-4 flex items-center border-b border-gray-700">
         <button 
           onClick={() => navigate("/chat")}
@@ -60,7 +60,7 @@ export default function EditProfile() {
         <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-lg w-full max-w-md text-center">
           <h2 className="text-xl font-bold mb-6 text-gray-100">Actualizar foto de perfil</h2>
 
-          {/* Círculo preview */}
+      
           <div className="relative w-40 h-40 mx-auto rounded-full bg-gray-700 mb-6 overflow-hidden group">
             {previewURL ? (
               <img src={previewURL} alt="preview" className="w-full h-full object-cover" />
@@ -70,7 +70,7 @@ export default function EditProfile() {
               </div>
             )}
             
-            {/* Overlay al hacer hover */}
+         
             <div 
               className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
               onClick={() => document.getElementById("fileInput").click()}
