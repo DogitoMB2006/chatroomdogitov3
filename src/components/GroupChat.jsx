@@ -33,6 +33,7 @@ import {
 } from "react-icons/md";
 import GroupSettings from "./GroupSettings";
 import Staff from "../components/Staff";
+import ViewProfile from "./ViewProfile";
 
 export default function GroupChat() {
   const { groupId } = useParams();
@@ -48,6 +49,7 @@ export default function GroupChat() {
   const [image, setImage] = useState(null);
   const fileInputRef = useRef(null);
   const [previewImage, setPreviewImage] = useState(null);
+  const [viewingProfile, setViewingProfile] = useState(null);
 
   const isAdmin = groupInfo?.admin === userData?.username;
 
@@ -191,6 +193,14 @@ export default function GroupChat() {
           />
         </div>
       )}
+      
+      {/* Modal de perfil de usuario */}
+      {viewingProfile && (
+        <ViewProfile 
+          username={viewingProfile} 
+          onClose={() => setViewingProfile(null)} 
+        />
+      )}
 
       {kickedOut ? (
         <div className="text-center text-red-400 font-semibold mt-20 p-4">
@@ -267,7 +277,10 @@ export default function GroupChat() {
                   >
                     <div className="flex items-start gap-2 max-w-[85%]">
                       {!isMine && (
-                        <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-700 flex-shrink-0 mt-1">
+                        <div 
+                          className="w-8 h-8 rounded-full overflow-hidden bg-gray-700 flex-shrink-0 mt-1 cursor-pointer hover:opacity-80"
+                          onClick={() => setViewingProfile(msg.from)}
+                        >
                           {photo ? (
                             <img
                               src={photo}
@@ -288,8 +301,11 @@ export default function GroupChat() {
                         }`}
                       >
                         {/* Nombre de usuario con badge de Staff */}
-                        <div className="flex items-center mb-1">
-                          <p className={`text-sm font-medium ${isMine ? "text-indigo-200" : "text-gray-300"}`}>
+                        <div 
+                          className="flex items-center mb-1 cursor-pointer"
+                          onClick={() => setViewingProfile(msg.from)}
+                        >
+                          <p className={`text-sm font-medium ${isMine ? "text-indigo-200" : "text-gray-300"} hover:underline`}>
                             {msg.from}
                           </p>
                           <Staff username={msg.from} />
