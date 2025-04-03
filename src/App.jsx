@@ -11,7 +11,7 @@ import EditProfile from "./pages/EditProfile";
 import NotificationListener from './components/NotificationListener';
 import { ToastProvider } from "./context/ToastContext";
 export default function App() {
-  useEffect(() => {
+  /* useEffect(() => {
     const notifKey = "notificacionesAceptadas";
   
     if (Notification.permission === "granted" || localStorage.getItem(notifKey)) {
@@ -30,7 +30,7 @@ export default function App() {
         localStorage.setItem(notifKey, "rechazado");
       }
     }
-  }, []);
+  }, []); */
   
 
   return (
