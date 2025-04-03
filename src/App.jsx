@@ -17,7 +17,7 @@ import { AuthContext } from "./context/AuthContext";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "./firebase/config";
 import AlertNotifications from './components/AlertNotifications';
-import { NotificationManager } from './utils/NotificationManager';
+import { NotificationService } from './utils/NotificationService';
 
 // Función global para actualizar el estado online (fuera del componente)
 const updateOnlineStatus = async (userId, username, status) => {
@@ -162,8 +162,8 @@ export default function App() {
   // Inicializar el sistema de notificaciones
   useEffect(() => {
     const initNotifications = async () => {
-      if (NotificationManager.isSupported()) {
-        console.log('Inicializando sistema de notificaciones...');
+      if (NotificationService.isSupported()) {
+        console.log('Comprobando sistema de notificaciones...');
         
         // Verificar si ya hemos guardado la preferencia
         const notifKey = "notificacionesAceptadas";
@@ -171,19 +171,23 @@ export default function App() {
         if (localStorage.getItem(notifKey) === 'true') {
           // El usuario ya aceptó las notificaciones, inicializar el sistema
           try {
-            await NotificationManager.initialize();
+            await NotificationService.initialize();
             console.log('Sistema de notificaciones inicializado correctamente');
             
-            // Si estamos en producción (no en localhost), mostrar una notificación de prueba
-            if (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+            // Si estamos en producción (no en localhost) y no se ha mostrado mensaje de bienvenida
+            if (!window.location.hostname.includes('localhost') && 
+                !window.location.hostname.includes('127.0.0.1') &&
+                !localStorage.getItem('welcome_notification_shown')) {
+              // Esperar un poco antes de mostrar la notificación
               setTimeout(() => {
-                NotificationManager.showNotification(
-                  '¡Notificaciones funcionando!',
+                NotificationService.showNotification(
+                  '¡Notificaciones activas!',
                   {
-                    body: 'Ahora recibirás notificaciones incluso cuando esta pestaña esté cerrada.',
+                    body: 'Ahora recibirás notificaciones incluso cuando esta aplicación esté cerrada.',
                     requireInteraction: false
                   }
                 );
+                localStorage.setItem('welcome_notification_shown', 'true');
               }, 5000);
             }
           } catch (error) {
