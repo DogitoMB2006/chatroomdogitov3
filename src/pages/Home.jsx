@@ -8,6 +8,20 @@ export default function Home() {
   const [updates, setUpdates] = useState([
     {
       id: 1,
+      version: "v1.0.2",
+      date: "3 Abril, 2025",
+      title: "Que hay de nuevo?",
+      description: "Se ha actualizado el UI completo, ahora es más bonito y rápido., además de que se han agregado nuevas funcionalidades",
+      features: [
+        "Todo es hermoso",
+        "El ui de discord no sirve comparado a esto",
+        "Me tomo 4 horas hacerlo",
+        "Ahora puedes ver el chat de tus amigos",
+        "se ha mejorado el estilo de los grupos tambien etc"
+      ]
+    },
+    {
+      id: 2,
       version: "v1.0.1",
       date: "3 Abril, 2025",
       title: "Nuevo sistema de notificaciones",
@@ -20,7 +34,7 @@ export default function Home() {
       ]
     },
     {
-      id: 2,
+      id: 3,
       version: "v1.0.0",
       date: "2 Marzo, 2025",
       title: "Mejoras de rendimiento",
@@ -54,7 +68,7 @@ export default function Home() {
         {/* Encabezado */}
         <div className="text-center mb-16">
           <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600 mb-4">
-            Chatroom Updates
+          DogiCord Updates
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Mantente informado sobre las últimas mejoras y características de nuestra plataforma.

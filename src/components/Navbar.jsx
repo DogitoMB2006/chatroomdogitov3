@@ -44,7 +44,7 @@ export default function Navbar() {
       {/* Logo */}
       <div className="flex items-center gap-3">
         <Link to="/" className="font-bold text-xl text-indigo-400 flex items-center">
-          Chatroom
+          DogiCord
         </Link>
       </div>
 
