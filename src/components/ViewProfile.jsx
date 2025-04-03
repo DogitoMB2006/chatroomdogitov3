@@ -24,14 +24,14 @@ export default function ViewProfile({ username, onClose }) {
     const fetchProfileData = async () => {
       setLoading(true);
       try {
-        // No permitir ver el propio perfil
+   
         if (username === userData.username) {
           setError("Este es tu propio perfil");
           setLoading(false);
           return;
         }
 
-        // Buscar datos del usuario
+      
         const q = query(
           collection(db, "users"),
           where("username", "==", username)

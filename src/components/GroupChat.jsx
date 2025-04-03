@@ -29,11 +29,13 @@ import {
   MdArrowBack, 
   MdImage,
   MdEmojiEmotions,
-  MdGif 
+  MdGif,
+  MdPeople
 } from "react-icons/md";
 import GroupSettings from "./GroupSettings";
 import Staff from "../components/Staff";
 import ViewProfile from "./ViewProfile";
+import ViewGroupMembers from "./ViewGroupMembers";
 
 export default function GroupChat() {
   const { groupId } = useParams();
@@ -50,6 +52,7 @@ export default function GroupChat() {
   const fileInputRef = useRef(null);
   const [previewImage, setPreviewImage] = useState(null);
   const [viewingProfile, setViewingProfile] = useState(null);
+  const [viewingMembers, setViewingMembers] = useState(false);
 
   const isAdmin = groupInfo?.admin === userData?.username;
 
@@ -91,7 +94,7 @@ export default function GroupChat() {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  
+  // Cargar perfiles de los miembros
   useEffect(() => {
     const fetchMembers = async () => {
       if (!groupInfo || !groupInfo.miembros?.length) return;
@@ -109,7 +112,7 @@ export default function GroupChat() {
     fetchMembers();
   }, [groupInfo]);
 
- 
+  // Obtener foto del usuario
   const getPhoto = (username) => {
     return usersData.find((u) => u.username === username)?.photoURL || null;
   };
@@ -143,7 +146,7 @@ export default function GroupChat() {
     if (!confirm) return;
 
     try {
-      
+      // Si hay una imagen, eliminarla del storage primero
       if (imageUrl) {
         const imagePath = decodeURIComponent(new URL(imageUrl).pathname.split("/o/")[1]);
         const imageRef = ref(storage, imagePath);
@@ -151,7 +154,7 @@ export default function GroupChat() {
           await deleteObject(imageRef);
         } catch (err) {
           console.error("Error al eliminar imagen:", err);
-         
+          // Continuar con la eliminación del mensaje incluso si falla la eliminación de la imagen
         }
       }
       
@@ -180,7 +183,7 @@ export default function GroupChat() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-900 text-gray-100">
-      
+      {/* Overlay de imagen previa */}
       {previewImage && (
         <div
           onClick={() => setPreviewImage(null)}
@@ -194,11 +197,20 @@ export default function GroupChat() {
         </div>
       )}
       
-     
+      {/* Modal de perfil de usuario */}
       {viewingProfile && (
         <ViewProfile 
           username={viewingProfile} 
           onClose={() => setViewingProfile(null)} 
+        />
+      )}
+      
+      {/* Modal de miembros del grupo */}
+      {viewingMembers && (
+        <ViewGroupMembers 
+          groupInfo={groupInfo} 
+          groupId={groupId}
+          onClose={() => setViewingMembers(false)} 
         />
       )}
 
@@ -208,7 +220,7 @@ export default function GroupChat() {
         </div>
       ) : (
         <>
-         
+          {/* Encabezado fijo */}
           <div className="sticky top-0 z-10 bg-gray-800 border-b border-gray-700 py-3 px-4 flex items-center">
             <button 
               onClick={() => navigate("/chat")}
@@ -222,41 +234,49 @@ export default function GroupChat() {
                 <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center mr-3">
                   <span className="text-xl">👥</span>
                 </div>
-                <div>
+                <div className="flex-1">
                   <h2 className="text-lg font-medium text-gray-100">
                     {groupInfo?.name || "Cargando..."}
                   </h2>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-gray-400 cursor-pointer hover:text-gray-200" onClick={() => setViewingMembers(true)}>
                     {groupInfo?.miembros?.length || 0} miembros
                   </p>
                 </div>
-              </div>
+                
+                <button
+                  onClick={() => setViewingMembers(true)}
+                  className="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-700 rounded-full mr-2"
+                  title="Ver miembros"
+                >
+                  <MdPeople size={22} />
+                </button>
 
-              {groupInfo && isAdmin && (
-                <GroupSettings
-                  groupId={groupId}
-                  groupInfo={groupInfo}
-                  onChange={() => {
-                    const groupRef = doc(db, "groups", groupId);
-                    getDoc(groupRef).then((snap) => {
-                      if (snap.exists()) {
-                        const updated = snap.data();
-                        setGroupInfo(updated);
-                        if (
-                          !updated.miembros.includes(userData.username)
-                        ) {
-                          setKickedOut(true);
-                          setTimeout(() => navigate("/chat"), 4000);
+                {groupInfo && isAdmin && (
+                  <GroupSettings
+                    groupId={groupId}
+                    groupInfo={groupInfo}
+                    onChange={() => {
+                      const groupRef = doc(db, "groups", groupId);
+                      getDoc(groupRef).then((snap) => {
+                        if (snap.exists()) {
+                          const updated = snap.data();
+                          setGroupInfo(updated);
+                          if (
+                            !updated.miembros.includes(userData.username)
+                          ) {
+                            setKickedOut(true);
+                            setTimeout(() => navigate("/chat"), 4000);
+                          }
                         }
-                      }
-                    });
-                  }}
-                />
-              )}
+                      });
+                    }}
+                  />
+                )}
+              </div>
             </div>
           </div>
 
-          
+          {/* Mensajes */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {messages.length === 0 ? (
               <div className="text-center text-gray-500 py-10">
@@ -300,7 +320,7 @@ export default function GroupChat() {
                             : "bg-gray-700 text-gray-100"
                         }`}
                       >
-                       
+                        {/* Nombre de usuario con badge de Staff */}
                         <div 
                           className="flex items-center mb-1 cursor-pointer"
                           onClick={() => setViewingProfile(msg.from)}
@@ -311,7 +331,7 @@ export default function GroupChat() {
                           <Staff username={msg.from} />
                         </div>
                         
-                     
+                        {/* Mensaje citado con badge de Staff */}
                         {msg.replyTo && (
                           <div className={`text-xs italic border-l-2 pl-2 mb-2 ${isMine ? "border-indigo-400 text-indigo-200" : "border-gray-500 text-gray-300"}`}>
                             <div className="flex items-center">
@@ -322,7 +342,7 @@ export default function GroupChat() {
                           </div>
                         )}
                         
-                     
+                        {/* Imagen */}
                         {msg.image && (
                           <div className="mb-2">
                             <img
