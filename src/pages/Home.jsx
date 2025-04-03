@@ -12,7 +12,8 @@ export default function Home() {
       features: [
         "Notificaciones push",
         "Configuración personalizada de alertas",
-        "Indicadores de mensajes no leídos"
+        "Indicadores de mensajes no leídos",
+        "He agregado GRUPOSS, ahora si grupos uwu"
       ]
     },
     {
