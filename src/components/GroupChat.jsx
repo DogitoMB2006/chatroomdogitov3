@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { db } from "../firebase/config";
+import { db, storage } from "../firebase/config";
 import {
   collection,
   addDoc,
@@ -14,9 +14,23 @@ import {
   where,
   getDocs
 } from "firebase/firestore";
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject
+} from "firebase/storage";
 import { AuthContext } from "../context/AuthContext";
 import { format } from "date-fns";
-import { MdDelete, MdReply, MdSend, MdArrowBack } from "react-icons/md";
+import { 
+  MdDelete, 
+  MdReply, 
+  MdSend, 
+  MdArrowBack, 
+  MdImage,
+  MdEmojiEmotions,
+  MdGif 
+} from "react-icons/md";
 import GroupSettings from "./GroupSettings";
 import Staff from "../components/Staff";
 
@@ -31,6 +45,9 @@ export default function GroupChat() {
   const scrollRef = useRef();
   const navigate = useNavigate();
   const [kickedOut, setKickedOut] = useState(false);
+  const [image, setImage] = useState(null);
+  const fileInputRef = useRef(null);
+  const [previewImage, setPreviewImage] = useState(null);
 
   const isAdmin = groupInfo?.admin === userData?.username;
 
@@ -96,24 +113,46 @@ export default function GroupChat() {
   };
 
   const handleSend = async () => {
-    if (!text.trim()) return;
+    if (!text.trim() && !image) return;
+
+    let imageUrl = null;
+
+    if (image) {
+      const imageRef = ref(storage, `groupImages/${groupId}/${Date.now()}-${image.name}`);
+      await uploadBytes(imageRef, image);
+      imageUrl = await getDownloadURL(imageRef);
+    }
 
     await addDoc(collection(db, "groupMessages", groupId, "messages"), {
       from: userData.username,
-      text,
+      text: text.trim(),
+      image: imageUrl,
       timestamp: serverTimestamp(),
       replyTo: replyTo ? { from: replyTo.from, text: replyTo.text } : null
     });
 
     setText("");
+    setImage(null);
     setReplyTo(null);
   };
 
-  const handleDelete = async (msgId) => {
+  const handleDelete = async (msgId, imageUrl) => {
     const confirm = window.confirm("¿Eliminar este mensaje?");
     if (!confirm) return;
 
     try {
+      // Si hay una imagen, eliminarla del storage primero
+      if (imageUrl) {
+        const imagePath = decodeURIComponent(new URL(imageUrl).pathname.split("/o/")[1]);
+        const imageRef = ref(storage, imagePath);
+        try {
+          await deleteObject(imageRef);
+        } catch (err) {
+          console.error("Error al eliminar imagen:", err);
+          // Continuar con la eliminación del mensaje incluso si falla la eliminación de la imagen
+        }
+      }
+      
       await deleteDoc(doc(db, "groupMessages", groupId, "messages", msgId));
     } catch (err) {
       alert("Error al eliminar: " + err.message);
@@ -127,8 +166,32 @@ export default function GroupChat() {
     }
   };
 
+  const handleImageClick = () => {
+    fileInputRef.current.click();
+  };
+
+  const handleFileChange = (e) => {
+    if (e.target.files[0]) {
+      setImage(e.target.files[0]);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-900 text-gray-100">
+      {/* Overlay de imagen previa */}
+      {previewImage && (
+        <div
+          onClick={() => setPreviewImage(null)}
+          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50"
+        >
+          <img
+            src={previewImage}
+            alt="Vista previa"
+            className="max-w-[90%] max-h-[90%] rounded"
+          />
+        </div>
+      )}
+
       {kickedOut ? (
         <div className="text-center text-red-400 font-semibold mt-20 p-4">
           Ya no eres parte de este grupo. Serás redirigido en unos segundos...
@@ -243,6 +306,18 @@ export default function GroupChat() {
                           </div>
                         )}
                         
+                        {/* Imagen */}
+                        {msg.image && (
+                          <div className="mb-2">
+                            <img
+                              src={msg.image}
+                              alt="imagen"
+                              className="rounded max-w-full max-h-60 cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => setPreviewImage(msg.image)}
+                            />
+                          </div>
+                        )}
+                        
                         <p className="break-words whitespace-pre-wrap">{msg.text}</p>
                         <p className={`text-[10px] text-right mt-1 ${isMine ? "text-indigo-200 opacity-70" : "text-gray-400 opacity-70"}`}>
                           {msg.timestamp?.toDate
@@ -253,7 +328,10 @@ export default function GroupChat() {
 
                       <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition">
                         <button
-                          onClick={() => setReplyTo({ from: msg.from, text: msg.text })}
+                          onClick={() => setReplyTo({ 
+                            from: msg.from, 
+                            text: msg.text || (msg.image ? "[Imagen]" : "") 
+                          })}
                           title="Responder"
                           className="text-gray-500 hover:text-gray-300 bg-gray-800 p-1 rounded"
                         >
@@ -262,7 +340,7 @@ export default function GroupChat() {
                         
                         {canDelete && (
                           <button
-                            onClick={() => handleDelete(msg.id)}
+                            onClick={() => handleDelete(msg.id, msg.image)}
                             className="text-red-500 hover:text-red-400 bg-gray-800 p-1 rounded"
                             title="Eliminar"
                           >
@@ -295,9 +373,54 @@ export default function GroupChat() {
             </div>
           )}
 
-          {/* Input */}
+          {/* Input area with image preview */}
           <div className="bg-gray-800 border-t border-gray-700 p-3">
+            {image && (
+              <div className="mb-2 bg-gray-700 p-2 rounded text-sm text-gray-300 flex justify-between items-center">
+                <span>
+                  Imagen: <strong className="text-gray-200">{image.name}</strong> 
+                  ({Math.round(image.size / 1024)} KB)
+                </span>
+                <button 
+                  onClick={() => setImage(null)}
+                  className="text-red-400 hover:text-red-300"
+                >
+                  <MdDelete />
+                </button>
+              </div>
+            )}
+            
             <div className="flex gap-2 items-center">
+              <div className="flex space-x-1">
+                <button
+                  onClick={handleImageClick}
+                  className="text-gray-400 hover:text-gray-200 p-2 rounded-full hover:bg-gray-700"
+                  title="Adjuntar imagen"
+                >
+                  <MdImage size={20} />
+                </button>
+                <button
+                  className="text-gray-400 hover:text-gray-200 p-2 rounded-full hover:bg-gray-700"
+                  title="Insertar emoji"
+                >
+                  <MdEmojiEmotions size={20} />
+                </button>
+                <button
+                  className="text-gray-400 hover:text-gray-200 p-2 rounded-full hover:bg-gray-700"
+                  title="Añadir GIF"
+                >
+                  <MdGif size={20} />
+                </button>
+              </div>
+              
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              
               <textarea
                 type="text"
                 placeholder="Escribe un mensaje..."
@@ -310,9 +433,9 @@ export default function GroupChat() {
               />
               <button
                 onClick={handleSend}
-                disabled={!text.trim() || kickedOut}
+                disabled={(!text.trim() && !image) || kickedOut}
                 className={`p-2 rounded-full ${
-                  !text.trim() || kickedOut
+                  (!text.trim() && !image) || kickedOut
                     ? "bg-gray-700 text-gray-500 cursor-not-allowed"
                     : "bg-indigo-600 hover:bg-indigo-700 text-white"
                 }`}
