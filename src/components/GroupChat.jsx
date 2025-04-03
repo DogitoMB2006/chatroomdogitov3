@@ -18,6 +18,7 @@ import { AuthContext } from "../context/AuthContext";
 import { format } from "date-fns";
 import { MdDelete, MdReply } from "react-icons/md";
 import GroupSettings from "./GroupSettings";
+import Staff from "../components/Staff"; // Importamos el componente Staff
 
 export default function GroupChat() {
   const { groupId } = useParams();
@@ -197,12 +198,23 @@ export default function GroupChat() {
                           : "bg-gray-200 text-black"
                       }`}
                     >
-                      <p className="text-sm font-semibold mb-1">{msg.from}</p>
+                      {/* Nombre de usuario con badge de Staff */}
+                      <div className="flex items-center mb-1">
+                        <p className="text-sm font-semibold">{msg.from}</p>
+                        <Staff username={msg.from} />
+                      </div>
+                      
+                      {/* Mensaje citado con badge de Staff */}
                       {msg.replyTo && (
                         <div className="text-xs italic border-l-2 pl-2 mb-1 text-gray-600">
-                          {msg.replyTo.from}: "{msg.replyTo.text}"
+                          <div className="flex items-center">
+                            <span>{msg.replyTo.from}</span>
+                            <Staff username={msg.replyTo.from} className="w-3 h-3 ml-1" />
+                            <span>: "{msg.replyTo.text}"</span>
+                          </div>
                         </div>
                       )}
+                      
                       <p className="break-words">{msg.text}</p>
                       <p className="text-[10px] text-right mt-1 opacity-70">
                         {msg.timestamp?.toDate
@@ -241,7 +253,11 @@ export default function GroupChat() {
           {/* Mensaje citado */}
           {replyTo && (
             <div className="bg-gray-100 border-l-4 border-blue-500 px-2 py-1 mb-2 text-sm text-gray-700 rounded">
-              Respondiendo a <strong>{replyTo.from}</strong>: "{replyTo.text}"
+              <div className="flex items-center">
+                Respondiendo a <strong className="mx-1">{replyTo.from}</strong>
+                <Staff username={replyTo.from} className="w-3 h-3 mr-1" />
+                : "{replyTo.text}"
+              </div>
               <button
                 onClick={() => setReplyTo(null)}
                 className="ml-2 text-red-500 text-xs hover:underline"

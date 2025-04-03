@@ -22,7 +22,9 @@ import {
   deleteObject
 } from "firebase/storage";
 import { format } from "date-fns";
-import { MdImage, MdDelete, MdReply } from "react-icons/md"; // Añadido MdReply
+import { MdImage, MdDelete, MdReply } from "react-icons/md";
+import BackButton from "../components/BackButton";
+import Staff from "../components/Staff"; // Importamos el componente Staff
 
 export default function MessageHandler({ receiver }) {
   const { userData } = useContext(AuthContext);
@@ -77,7 +79,6 @@ export default function MessageHandler({ receiver }) {
 
       setMessages(filtered);
 
-      // Auto-scroll al último mensaje al cargar
       setTimeout(() => {
         scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
@@ -154,6 +155,7 @@ export default function MessageHandler({ receiver }) {
         {messages.map((msg, idx) => {
           const isMine = msg.from === userData.username;
           const photoURL = isMine ? userData?.photoURL : receiverData?.photoURL;
+          const isStaff = msg.from === "Dogito"; // Verificamos si el mensaje es de Dogito
           
           return (
             <div
@@ -179,10 +181,22 @@ export default function MessageHandler({ receiver }) {
                     : 'bg-gray-200 text-black'
                   }`}
               >
+                {/* Nombre y badge de Staff para Dogito */}
+                <div className="flex items-center mb-1">
+                  {!isMine && (
+                    <>
+                      <span className="text-xs font-semibold">{msg.from}</span>
+                      <Staff username={msg.from} />
+                    </>
+                  )}
+                </div>
+
                 {/* Mensaje al que se responde */}
                 {msg.replyTo && (
                   <div className="text-xs italic border-l-2 pl-2 mb-1 opacity-75">
-                    <span className="font-semibold">{msg.replyTo.from}:</span> "{msg.replyTo.text}"
+                    <span className="font-semibold">{msg.replyTo.from}</span>
+                    <Staff username={msg.replyTo.from} className="w-3 h-3" />
+                    <span>: "{msg.replyTo.text}"</span>
                   </div>
                 )}
 
@@ -263,8 +277,10 @@ export default function MessageHandler({ receiver }) {
       {/* Mensaje de respuesta justo arriba del input */}
       {replyTo && (
         <div className="bg-gray-100 border-l-4 border-blue-500 px-3 py-2 mx-2 mt-2 mb-1 text-sm rounded flex justify-between items-center">
-          <div>
-            Respondiendo a <strong>{replyTo.from}</strong>: "{replyTo.text}"
+          <div className="flex items-center">
+            Respondiendo a <strong className="mx-1">{replyTo.from}</strong>
+            <Staff username={replyTo.from} className="w-3 h-3 mr-1" />
+            : "{replyTo.text}"
           </div>
           <button
             onClick={() => setReplyTo(null)}
@@ -312,6 +328,7 @@ export default function MessageHandler({ receiver }) {
           </p>
         )}
       </div>
+      <BackButton className="mb-4" />
     </div>
   );
 }

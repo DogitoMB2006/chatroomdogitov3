@@ -6,6 +6,8 @@ import { useNavigate, Link } from "react-router-dom";
 import AddFriend from "../components/AddFriend";
 import FriendRequests from "../components/FriendRequests";
 import CreateGroupButton from "../components/CreateGroupButton";
+import Staff from "../components/Staff";
+
 
 export default function Chats() {
   const { user, userData } = useContext(AuthContext);
@@ -66,27 +68,31 @@ export default function Chats() {
       <h2 className="text-2xl font-bold mb-4 text-center">Tus amigos</h2>
 
       <div className="max-w-md mx-auto bg-white shadow rounded p-4 space-y-2">
-        {friends.map((f, index) => (
-          <div
-            key={index}
-            onClick={() => navigate(`/chat/${f.username}`)}
-            className="cursor-pointer px-4 py-2 rounded hover:bg-gray-200 flex items-center gap-3"
-          >
-            <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-300 flex-shrink-0">
-              {f.photoURL ? (
-                <img src={f.photoURL} alt="avatar" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">
-                  😶
-                </div>
-              )}
-            </div>
-            <div className="flex justify-between items-center w-full">
-              <span>{f.username}</span>
-              <span className="text-xs text-gray-400">Ver chat</span>
-            </div>
-          </div>
-        ))}
+      {friends.map((f, index) => (
+  <div
+    key={index}
+    onClick={() => navigate(`/chat/${f.username}`)}
+    className="cursor-pointer px-4 py-2 rounded hover:bg-gray-200 flex items-center gap-3"
+  >
+    <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-300 flex-shrink-0">
+      {f.photoURL ? (
+        <img src={f.photoURL} alt="avatar" className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">
+          😶
+        </div>
+      )}
+    </div>
+    <div className="flex justify-between items-center w-full">
+      <span>
+        {f.username}
+        <Staff username={f.username} />
+      </span>
+      <span className="text-xs text-gray-400">Ver chat</span>
+    </div>
+  </div>
+))}
+
         {friends.length === 0 && (
           <p className="text-center text-gray-500">No tienes amigos agregados todavía.</p>
         )}
