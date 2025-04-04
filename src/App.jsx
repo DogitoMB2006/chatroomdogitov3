@@ -17,7 +17,7 @@ import { AuthContext } from "./context/AuthContext";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "./firebase/config";
 import AlertNotifications from './components/AlertNotifications';
-import NotificationService from './utils/NotificationService';
+import { NotificationService } from "../utils/NotificationService";
 
 // Función global para actualizar el estado online (fuera del componente)
 const updateOnlineStatus = async (userId, username, status) => {
