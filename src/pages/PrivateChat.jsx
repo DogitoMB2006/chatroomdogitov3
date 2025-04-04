@@ -13,7 +13,7 @@ import {
   orderBy,
   doc
 } from "firebase/firestore";
-import { MdArrowBack, MdMoreVert, MdCall, MdVideocam } from "react-icons/md";
+import { MdArrowBack, MdMoreVert, MdCall, MdVideocam, MdClose } from "react-icons/md";
 import { listenToUserStatus } from "../utils/onlineStatus";
 
 export default function PrivateChat() {
@@ -82,21 +82,21 @@ export default function PrivateChat() {
     };
   
     return (
-      <div className="h-screen flex flex-col bg-gray-900 text-gray-100">
+      <div className="h-screen flex flex-col bg-gray-900 text-gray-100 max-w-full overflow-hidden">
         {/* Header */}
-        <header className="bg-gray-800 px-4 py-2 shadow-md flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+        <header className="bg-gray-800 px-2 sm:px-4 py-2 shadow-md flex items-center justify-between">
+          <div className="flex items-center space-x-2 sm:space-x-3">
             <button 
               onClick={goBack}
-              className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700"
+              className="text-gray-400 hover:text-white p-1 sm:p-2 rounded-full hover:bg-gray-700"
               aria-label="Go back"
             >
               <MdArrowBack size={20} />
             </button>
             
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 sm:space-x-3">
               <div className="relative">
-                <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-600 flex-shrink-0">
+                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full overflow-hidden bg-gray-600 flex-shrink-0">
                   {receiverData?.photoURL ? (
                     <img src={receiverData.photoURL} alt="avatar" className="w-full h-full object-cover" />
                   ) : (
@@ -104,12 +104,12 @@ export default function PrivateChat() {
                   )}
                 </div>
                 {isUserOnline && (
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-800"></div>
+                  <div className="absolute bottom-0 right-0 w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full border-2 border-gray-800"></div>
                 )}
               </div>
               
-              <div>
-                <h2 className="font-medium text-gray-100">{username}</h2>
+              <div className="min-w-0">
+                <h2 className="font-medium text-gray-100 truncate max-w-[120px] sm:max-w-full">{username}</h2>
                 <p className="text-xs text-gray-400">
                   {isUserOnline ? "En línea" : "Desconectado"}
                 </p>
@@ -117,22 +117,22 @@ export default function PrivateChat() {
             </div>
           </div>
           
-          <div className="flex items-center space-x-1">
+          <div className="flex items-center">
             <button 
-              className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700"
+              className="text-gray-400 hover:text-white p-1 sm:p-2 rounded-full hover:bg-gray-700 hidden sm:block"
               aria-label="Call"
             >
               <MdCall size={20} />
             </button>
             <button 
-              className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700"
+              className="text-gray-400 hover:text-white p-1 sm:p-2 rounded-full hover:bg-gray-700 hidden sm:block"
               aria-label="Video call"
             >
               <MdVideocam size={20} />
             </button>
             <button 
               onClick={toggleUserInfo}
-              className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700"
+              className="text-gray-400 hover:text-white p-1 sm:p-2 rounded-full hover:bg-gray-700"
               aria-label="More options"
             >
               <MdMoreVert size={20} />
@@ -140,15 +140,77 @@ export default function PrivateChat() {
           </div>
         </header>
   
-        {/* Main Chat Area */}
-        <div className="flex flex-1 overflow-hidden">
-          <div className="flex-1 flex flex-col">
+        {/* Main Chat Area with Sidebar */}
+        <div className="flex flex-1 overflow-hidden relative">
+          {/* Main chat content */}
+          <div className="flex-1 flex flex-col w-full">
             <div className="flex-1 overflow-y-auto bg-gray-850 px-2">
               <MessageHandler receiver={username} />
             </div>
           </div>
           
-          {/* User Info Sidebar */}
+          {/* Mobile User Info Overlay - Only shown on mobile when toggleUserInfo is true */}
+          {showUserInfo && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden flex justify-end">
+              <div className="w-3/4 max-w-xs bg-gray-800 h-full overflow-y-auto p-4 animate-slide-in-right">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-medium text-lg">Información de usuario</h3>
+                  <button 
+                    onClick={toggleUserInfo}
+                    className="text-gray-400 hover:text-white p-1 rounded-full hover:bg-gray-700"
+                  >
+                    <MdClose size={20} />
+                  </button>
+                </div>
+                
+                {receiverData && (
+                  <div className="space-y-4">
+                    <div className="flex flex-col items-center">
+                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-gray-600 mb-3">
+                        {receiverData.photoURL ? (
+                          <img src={receiverData.photoURL} alt="avatar" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-2xl text-gray-300">😶</div>
+                        )}
+                      </div>
+                      <h4 className="font-bold text-xl truncate max-w-full">{username}</h4>
+                      <p className="text-sm text-gray-400">
+                        {isUserOnline ? "En línea" : "Desconectado"}
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2 text-sm">
+                      <div className="bg-gray-700 p-3 rounded">
+                        <span className="block text-gray-400 mb-1">Correo</span>
+                        <span className="break-words">{receiverData.email || "No disponible"}</span>
+                      </div>
+                      
+                      <div className="bg-gray-700 p-3 rounded">
+                        <span className="block text-gray-400 mb-1">Estado</span>
+                        <span>{receiverData.status || "Sin estado"}</span>
+                      </div>
+                      
+                      <div className="bg-gray-700 p-3 rounded">
+                        <span className="block text-gray-400 mb-1">Se unió</span>
+                        <span>{receiverData.joinDate || "Fecha desconocida"}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="pt-4 border-t border-gray-700 flex flex-col space-y-2">
+                      <button className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 rounded text-white transition-colors">
+                        Enviar mensaje
+                      </button>
+                      <button className="w-full py-2 bg-red-600 hover:bg-red-700 rounded text-white transition-colors">
+                        Bloquear usuario
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {/* Desktop sidebar - Only shown on desktop */}
           {showUserInfo && (
             <div className="w-64 bg-gray-800 shadow-lg border-l border-gray-700 overflow-y-auto hidden md:block p-4 animate-fade-in-down">
               <h3 className="font-medium text-lg mb-4">Información de usuario</h3>
@@ -172,7 +234,7 @@ export default function PrivateChat() {
                   <div className="space-y-2 text-sm">
                     <div className="bg-gray-700 p-3 rounded">
                       <span className="block text-gray-400 mb-1">Correo</span>
-                      <span>{receiverData.email || "No disponible"}</span>
+                      <span className="break-words">{receiverData.email || "No disponible"}</span>
                     </div>
                     
                     <div className="bg-gray-700 p-3 rounded">
