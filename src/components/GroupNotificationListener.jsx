@@ -12,7 +12,6 @@ import {
 } from "firebase/firestore";
 import { AuthContext } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import NotificationService from "../utils/NotificationService";
 
 export default function GroupNotificationListener() {
   const { userData } = useContext(AuthContext);
@@ -47,55 +46,32 @@ export default function GroupNotificationListener() {
           const q = query(
             collection(db, "groupMessages", group.id, "messages"),
             where("from", "!=", userData.username),
-            orderBy("from"),
             orderBy("timestamp", "desc"),
-            limitToLast(5)
+            limitToLast(10)
           );
 
           return onSnapshot(q, async (snapshot) => {
-            // Procesar cambios
-            const changes = snapshot.docChanges();
-            console.log(`${changes.length} cambios en mensajes del grupo ${group.name}`);
-            
-            const latest = changes
+            const latest = snapshot.docChanges()
               .filter(change => change.type === "added")
-              .map(change => ({ id: change.doc.id, ...change.doc.data(), groupId: group.id, groupName: group.name }));
+              .map(change => ({ id: change.doc.id, ...change.doc.data(), groupId: group.id }));
 
             for (const msg of latest) {
               // Verificar si ya se procesó
-              if (processedMsgIds.has(msg.id)) {
-                console.log(`Mensaje ${msg.id} ya procesado, omitiendo`);
-                continue;
-              }
-              
+              if (processedMsgIds.has(msg.id)) continue;
               processedMsgIds.add(msg.id);
               
               // Verificar si el mensaje es reciente
-              if (!msg.timestamp) {
-                console.log(`Mensaje ${msg.id} sin timestamp, omitiendo`);
-                continue;
-              }
-              
+              if (!msg.timestamp) continue;
               const msgTime = msg.timestamp.toMillis ? msg.timestamp.toMillis() : msg.timestamp;
-              if (msgTime < lastTimestampRef.current) {
-                console.log(`Mensaje ${msg.id} anterior al inicio del listener, omitiendo`);
-                continue;
-              }
+              if (msgTime < lastTimestampRef.current) continue;
 
-              console.log(`Procesando nuevo mensaje de ${msg.from} en grupo ${group.name}`);
-
-              // Verificar si la página está activa o no
-              const isPageVisible = document.visibilityState === 'visible';
+              // Verificar si estamos en la página del grupo
               const currentPath = location.pathname;
               const groupPath = `/chat/group/${msg.groupId}`;
+              const isInGroupChat = currentPath === groupPath;
               
-              // Si estamos en la página del grupo y la página está visible, no mostrar notificación
-              const skipNotification = currentPath === groupPath && isPageVisible;
-              
-              if (skipNotification) {
-                console.log(`Usuario ya está en ${groupPath} y la página está visible, omitiendo notificación`);
-                continue;
-              }
+              // Si estamos en la página del grupo, no mostrar notificación
+              if (isInGroupChat) continue;
 
               // Obtener información del remitente
               try {
@@ -106,8 +82,7 @@ export default function GroupNotificationListener() {
                 const snap = await getDocs(q);
                 const sender = !snap.empty ? snap.docs[0].data() : null;
 
-                // Mostrar toast dentro de la app siempre
-                console.log(`Mostrando toast para mensaje de ${msg.from} en ${group.name}`);
+                // Mostrar toast dentro de la app
                 showToast({
                   username: msg.from,
                   text: msg.text || (msg.image ? "📷 Imagen" : ""),
@@ -117,74 +92,34 @@ export default function GroupNotificationListener() {
                   groupName: group.name
                 });
 
-                // Si el usuario ha habilitado notificaciones y la página no está enfocada o estamos en otra sección
-                if (!isPageVisible || currentPath !== groupPath) {
-                  if (Notification.permission === 'granted' && 
-                      localStorage.getItem('notificationsEnabled') === 'true') {
-                    
-                    console.log('Enviando notificación del sistema para mensaje grupal');
-                    
-                    // Crear datos para la notificación
-                    const messageText = msg.text || (msg.image ? "📷 Imagen" : "");
-                    const notificationTitle = `${msg.from} (Grupo: ${group.name})`;
-                    const notificationOptions = {
+                // Notificación del navegador (básica)
+                if (Notification.permission === 'granted') {
+                  const messageText = msg.text || (msg.image ? "📷 Imagen" : "");
+                  
+                  try {
+                    new Notification(`${msg.from} (Grupo: ${group.name})`, {
                       body: messageText,
-                      icon: sender?.photoURL || '/default-avatar.png',
-                      data: {
-                        url: `/chat/group/${msg.groupId}`,
-                        messageId: msg.id,
-                        groupId: msg.groupId
-                      },
-                      requireInteraction: false
-                    };
-                    
-                    // Intentar mostrar notificación a través del Service Worker primero
-                    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-                      console.log('Enviando notificación a través del Service Worker');
-                      navigator.serviceWorker.controller.postMessage({
-                        type: 'SEND_NOTIFICATION',
-                        payload: {
-                          title: notificationTitle,
-                          ...notificationOptions
-                        }
-                      });
-                    } else {
-                      // Fallback al método del servicio
-                      console.log('Service Worker no disponible, usando fallback');
-                      await NotificationService.showNotification(
-                        notificationTitle,
-                        notificationOptions
-                      );
-                    }
-                  } else {
-                    console.log('Notificaciones no están habilitadas o permitidas por el usuario');
+                      icon: sender?.photoURL || '/default-avatar.png'
+                    });
+                  } catch (error) {
+                    console.error("Error al mostrar notificación:", error);
                   }
                 }
               } catch (error) {
-                console.error("Error al procesar notificación de grupo:", error);
+                console.error("Error al procesar mensaje:", error);
               }
             }
-          }, error => {
-            console.error(`Error en listener de grupo ${group.name}:`, error);
           });
         });
 
-        return () => {
-          console.log("Limpiando listeners de grupos");
-          unsubs.forEach(unsub => unsub());
-        };
+        return () => unsubs.forEach(unsub => unsub());
       } catch (error) {
-        console.error("Error al configurar listeners de grupo:", error);
+        console.error("Error al configurar listeners:", error);
       }
     };
 
-    const cleanup = fetchGroups();
-    return () => {
-      if (cleanup && typeof cleanup === 'function') {
-        cleanup();
-      }
-    };
-  }, [userData, showToast]); // Removimos location.pathname y navigate para evitar reconstruir listeners en navegación
+    fetchGroups();
+  }, [userData, showToast, location.pathname]); 
 
   return null;
 }
