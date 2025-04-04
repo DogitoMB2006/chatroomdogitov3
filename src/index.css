@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 @import "tailwindcss";
+
+/* Configuración base para toda la aplicación */
+html, body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  background-color: #111827; /* bg-gray-900 */
+  font-size: 16px; /* Base font size para mejor legibilidad en móvil */
+}
+
+/* Root y app con dimensiones correctas */
 #root {
   width: 100%;
   height: 100vh;
@@ -17,73 +30,11 @@
   text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
-}
-
-/* ========== RESPONSIVE STYLES FOR CHAT APP ========== */
-
-/* Configuración base para toda la aplicación */
-html, body {
-  height: 100%;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  overflow-x: hidden;
-  background-color: #111827; /* Color de fondo que coincide con bg-gray-900 */
-}
-
-/* Asegurar que la app use toda la pantalla */
-.min-h-screen, .h-screen {
-  min-height: 100vh;
-  height: 100vh;
-  width: 100%;
-}
-
-/* Soporte para notches en iOS */
+/* Soporte para dispositivos iOS con notch */
 @supports (-webkit-touch-callout: none) {
   .min-h-screen, .h-screen {
-    min-height: -webkit-fill-available;
     height: -webkit-fill-available;
-  }
-}
-
-/* Evitar zoom en campos de texto en iOS */
-@media (max-width: 768px) {
-  input, textarea, select, button {
-    font-size: 16px;
+    min-height: -webkit-fill-available;
   }
 }
 
@@ -92,7 +43,35 @@ html, body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Animación para deslizar el sidebar desde la derecha en móvil */
+/* Mejorar objetivos táctiles para dispositivos móviles */
+@media (max-width: 640px) {
+  button, 
+  .cursor-pointer {
+    min-height: 44px; /* Tamaño mínimo recomendado para objetivos táctiles */
+    min-width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Ajustes específicos para botones en la navegación */
+  header button {
+    min-height: 36px;
+    min-width: 36px;
+  }
+  
+  /* Evitar textos demasiado pequeños */
+  body {
+    font-size: 16px; /* Mantener fuente legible */
+  }
+  
+  /* Mejorar burbujas de mensajes */
+  .max-w-message {
+    max-width: 90%;
+  }
+}
+
+/* Animación para deslizar el sidebar desde la derecha */
 @keyframes slide-in-right {
   from {
     transform: translateX(100%);
@@ -120,56 +99,6 @@ html, body {
   animation: fade-in 0.3s ease-out forwards;
 }
 
-/* Hacer botones visibles en dispositivos táctiles sin hover */
-@media (hover: none) {
-  .group-hover\:opacity-100 {
-    opacity: 1 !important;
-  }
-  
-  .touch-device-visible {
-    opacity: 1 !important;
-    visibility: visible !important;
-  }
-}
-
-/* Mejor manejo de enlaces y texto en móvil */
-@media (max-width: 640px) {
-  .break-words {
-    word-break: break-word;
-  }
-  
-  .break-all {
-    word-break: break-all;
-  }
-  
-  /* Mejorar objetivos táctiles para móvil */
-  button, 
-  .cursor-pointer {
-    min-height: 34px;
-    min-width: 34px;
-    touch-action: manipulation;
-  }
-}
-
-/* Safe area insets para teléfonos con notch */
-.safe-area-inset-top {
-  padding-top: env(safe-area-inset-top);
-}
-
-.safe-area-inset-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-/* Restricciones de burbujas de mensaje */
-.max-w-message {
-  max-width: 85%;
-}
-@media (max-width: 640px) {
-  .max-w-message {
-    max-width: 90%;
-  }
-}
-
 /* Animación del spinner de carga */
 @keyframes spin {
   from {
@@ -184,35 +113,54 @@ html, body {
   animation: spin 1s linear infinite;
 }
 
+/* Safe area insets para teléfonos con notch */
+.safe-area-inset-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Manejo de textos largos */
+.break-words {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
 /* Mejorar manejo de imágenes en pantallas pequeñas */
 img {
   max-width: 100%;
   height: auto;
+  object-fit: cover;
 }
 
-
-/*
-Viejos estilos porsiacaso
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-@import "tailwindcss";
-body {
-  margin: 0;
-  padding: 0;
+/* Corregir problema común de layouts flexibles en móvil */
+.flex {
+  min-height: 0;
+  min-width: 0;
 }
 
-@keyframes fade-in-down {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
+/* Prevenir desbordamiento en contenedores flex */
+.flex-1 {
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Fijar a la parte inferior de la pantalla */
+.sticky-bottom {
+  position: sticky;
+  bottom: 0;
+}
+
+/* Eliminar estilos innecesarios si no se usan */
+.logo, .read-the-docs {
+  display: none;
+}
+
+/* Desactivar animación del logo si no se necesita */
+@media (prefers-reduced-motion: reduce) {
+  a .logo {
+    animation: none !important;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
-
-.animate-fade-in-down {
-  animation: fade-in-down 0.3s ease-out;
-} */
