@@ -57,6 +57,40 @@ export default function Home() {
     }
   ]);
 
+  // Estilos compartidos para los contenedores de video
+  const videoContainerStyles = `
+    .video-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16/9;
+    }
+    
+    .video-container video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    
+    /* Cambio de estilo cuando está en pantalla completa */
+    :fullscreen .video-container,
+    :-webkit-full-screen .video-container,
+    :-moz-full-screen .video-container,
+    :-ms-fullscreen .video-container {
+      width: 100vw !important;
+      height: 100vh !important;
+      aspect-ratio: unset;
+    }
+    
+    :fullscreen video,
+    :-webkit-full-screen video,
+    :-moz-full-screen video,
+    :-ms-fullscreen video {
+      width: auto !important;
+      height: auto !important;
+      max-width: 100% !important;
+      max-height: 100% !important;
+    }
+  `;
 
   useEffect(() => {
     const animateUpdates = () => {
@@ -100,39 +134,7 @@ export default function Home() {
                 Aprende a instalar nuestra aplicación en tu dispositivo Android usando el navegador Brave.
               </p>
               <div className="mt-4 w-full max-w-3xl mx-auto rounded-lg overflow-hidden shadow-lg bg-gray-900 video-container">
-                <style jsx>{`
-                  .video-container {
-                    position: relative;
-                    width: 100%;
-                    aspect-ratio: 16/9;
-                  }
-                  
-                  .video-container video {
-                    width: 100%;
-                    height: 100%;
-                    object-fit: contain;
-                  }
-                  
-                  /* Cambio de estilo cuando está en pantalla completa */
-                  :fullscreen .video-container,
-                  :-webkit-full-screen .video-container,
-                  :-moz-full-screen .video-container,
-                  :-ms-fullscreen .video-container {
-                    width: 100vw !important;
-                    height: 100vh !important;
-                    aspect-ratio: unset;
-                  }
-                  
-                  :fullscreen video,
-                  :-webkit-full-screen video,
-                  :-moz-full-screen video,
-                  :-ms-fullscreen video {
-                    width: auto !important;
-                    height: auto !important;
-                    max-width: 100% !important;
-                    max-height: 100% !important;
-                  }
-                `}</style>
+                <style jsx>{videoContainerStyles}</style>
                 <video 
                   controls 
                   playsInline
@@ -151,6 +153,47 @@ export default function Home() {
                   <li>Abre DogiCord en Brave y navega a la configuración</li>
                   <li>Selecciona "Añadir a pantalla de inicio"</li>
                   <li>¡Disfruta de DogiCord como una aplicación nativa!</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Notifications Tutorial Section */}
+        <div className="mb-16 bg-white rounded-xl shadow-md overflow-hidden">
+          <div className="md:flex">
+            <div className="md:shrink-0 bg-gradient-to-r from-indigo-500 to-purple-600 md:w-48 flex items-center justify-center p-6 md:p-0">
+              <div className="text-center text-white">
+                <div className="text-xl font-bold">Notificaciones</div>
+                <div className="text-sm opacity-80">Tutorial</div>
+              </div>
+            </div>
+            <div className="p-6 w-full">
+              <div className="font-bold text-xl mb-2 text-gray-800">Cómo habilitar notificaciones</div>
+              <p className="text-gray-600 mb-4">
+                Aprende a configurar las notificaciones para no perderte ningún mensaje importante.
+              </p>
+              <div className="mt-4 w-full max-w-3xl mx-auto rounded-lg overflow-hidden shadow-lg bg-gray-900 video-container">
+                <style jsx>{videoContainerStyles}</style>
+                <video 
+                  controls 
+                  playsInline
+                  preload="metadata"
+                  poster="/notification-tutorial-poster.jpg"
+                  className="video-player"
+                >
+                  <source src="/enablenotis.mp4" type="video/mp4" />
+                  Tu navegador no soporta la reproducción de videos.
+                </video>
+              </div>
+              <div className="mt-4 text-sm text-gray-600">
+                <p>Sigue estos pasos para habilitar las notificaciones:</p>
+                <ol className="list-decimal ml-5 mt-2 space-y-1">
+                  <li>Abre DogiCord y ve a la configuración de tu perfil</li>
+                  <li>Busca la sección "Notificaciones" en el menú</li>
+                  <li>Activa las notificaciones según tus preferencias</li>
+                  <li>Permite los permisos del navegador cuando te lo solicite</li>
+                  <li>¡Listo! Ahora recibirás notificaciones en tiempo real</li>
                 </ol>
               </div>
             </div>
@@ -189,7 +232,6 @@ export default function Home() {
             </div>
           ))}
         </div>
-
 
         <div className="mt-16 text-center">
           <button 
