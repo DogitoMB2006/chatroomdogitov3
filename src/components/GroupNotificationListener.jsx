@@ -1,12 +1,14 @@
-import { useContext, useEffect } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { db } from "../firebase/config";
 import {
   collection,
   query,
   where,
+  orderBy,
   onSnapshot,
-  orderBy
+  getDocs,
+  limitToLast
 } from "firebase/firestore";
 import { AuthContext } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -15,107 +17,123 @@ import NotificationService from "../utils/NotificationService";
 export default function GroupNotificationListener() {
   const { userData } = useContext(AuthContext);
   const { showToast } = useToast();
+  const lastTimestampRef = useRef(Date.now());
   const location = useLocation();
   const navigate = useNavigate();
+  const [processedMsgIds] = useState(new Set());
 
   useEffect(() => {
     if (!userData) return;
 
-    const notifKey = "group_last_notif";
-    const lastSeen = JSON.parse(localStorage.getItem(notifKey) || "{}");
+    // Obtener los grupos del usuario
+    const fetchGroups = async () => {
+      const q = query(
+        collection(db, "groups"),
+        where("miembros", "array-contains", userData.username)
+      );
 
-    const unsubMessageListeners = new Map(); 
+      const snap = await getDocs(q);
+      const groups = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    const q = query(
-      collection(db, "groups"),
-      where("miembros", "array-contains", userData.username)
-    );
+      // Suscribirse a mensajes nuevos en cada grupo
+      const unsubs = groups.map(group => {
+        const q = query(
+          collection(db, "groupMessages", group.id, "messages"),
+          where("from", "!=", userData.username),
+          orderBy("from"),
+          orderBy("timestamp", "desc"),
+          limitToLast(5)
+        );
 
-    const unsubGroups = onSnapshot(q, (groupSnap) => {
-      const currentGroupIds = new Set();
+        return onSnapshot(q, async (snapshot) => {
+          const latest = snapshot.docChanges()
+            .filter(change => change.type === "added")
+            .map(change => ({ id: change.doc.id, ...change.doc.data(), groupId: group.id }));
 
-      groupSnap.forEach((groupDoc) => {
-        const groupId = groupDoc.id;
-        currentGroupIds.add(groupId);
+          for (const msg of latest) {
+            if (processedMsgIds.has(msg.id)) continue;
+            processedMsgIds.add(msg.id);
 
-        if (unsubMessageListeners.has(groupId)) return; 
+            if (!msg.timestamp || msg.timestamp.toMillis() < lastTimestampRef.current) continue;
 
-        const group = groupDoc.data();
-        const msgsRef = collection(db, "groupMessages", groupId, "messages");
-        const msgQuery = query(msgsRef, orderBy("timestamp", "desc"));
+            // Verificar si la página está activa o no
+            const isPageVisible = document.visibilityState === 'visible';
+            const currentPath = location.pathname;
+            const groupPath = `/chat/group/${msg.groupId}`;
 
-        const unsub = onSnapshot(msgQuery, (msgSnap) => {
-          const last = msgSnap.docs[0];
-          if (!last) return;
+            // Si estamos en la página del grupo y la página está visible, no mostrar notificación
+            if (currentPath === groupPath && isPageVisible) continue;
 
-          const data = last.data();
-          const msgId = last.id;
+            // Obtener información del remitente
+            const q = query(
+              collection(db, "users"),
+              where("username", "==", msg.from)
+            );
+            const snap = await getDocs(q);
+            const sender = !snap.empty ? snap.docs[0].data() : null;
 
-          // Verificar si ya estamos en el chat de este grupo
-          const isPageVisible = document.visibilityState === 'visible';
-          const currentPath = location.pathname;
-          const groupPath = `/chat/group/${groupId}`;
-          
-          // Si estamos en el chat de este grupo y la página está visible, actualizar el último mensaje visto pero no mostrar notificación
-          if (currentPath === groupPath && isPageVisible) {
-            lastSeen[groupId] = msgId;
-            localStorage.setItem(notifKey, JSON.stringify(lastSeen));
-            return;
-          }
-
-          const lastNotif = lastSeen[groupId];
-          if (
-            data.from !== userData.username &&
-            (!lastNotif || lastNotif !== msgId)
-          ) {
-            // Siempre mostrar el toast interno de la app
+            // Mostrar toast dentro de la app siempre
             showToast({
-              username: `${data.from} • ${group.name}`,
-              text: data.text || "📷 Imagen",
-              photoURL: data.photoURL || null,
-              type: "group", // Indicar que es un chat de grupo
-              chatId: groupId, // ID del grupo para la navegación
-              from: data.from // Usuario que envio el mensaje
+              username: msg.from,
+              text: msg.text || (msg.image ? "📷 Imagen" : ""),
+              photoURL: sender?.photoURL,
+              type: "group",
+              chatId: msg.groupId,
+              groupName: group.name
             });
 
-            // Si el usuario ha habilitado notificaciones y la página no está enfocada o no estamos en el chat del grupo
-            if (NotificationService.isEnabled() && (!isPageVisible || currentPath !== groupPath)) {
-              const messageText = data.text || (data.image ? "📷 Imagen" : "");
-              NotificationService.showNotification(
-                `${data.from} en ${group.name}`,
-                {
-                  body: messageText,
-                  icon: data.photoURL || '/default-group.png', // Reemplaza con tu icono de grupo por defecto
-                  onClick: function() {
-                    window.focus();
-                    navigate(`/chat/group/${groupId}`);
-                    this.close();
+            // Si el usuario ha habilitado notificaciones y la página no está enfocada o estamos en otra sección
+            try {
+              if ((!isPageVisible || currentPath !== groupPath)) {
+                if (Notification.permission === 'granted' && 
+                    localStorage.getItem('notificationsEnabled') === 'true') {
+                  
+                  console.log('Enviando notificación de grupo:', `Mensaje de ${msg.from} en ${group.name}`);
+                  
+                  // Crear datos para la notificación
+                  const messageText = msg.text || (msg.image ? "📷 Imagen" : "");
+                  const notificationTitle = `${msg.from} (Grupo: ${group.name})`;
+                  const notificationOptions = {
+                    body: messageText,
+                    icon: sender?.photoURL || '/default-avatar.png',
+                    data: {
+                      url: `/chat/group/${msg.groupId}`,
+                      messageId: msg.id,
+                      groupId: msg.groupId
+                    },
+                    requireInteraction: false
+                  };
+                  
+                  // Intentar mostrar notificación a través del Service Worker primero
+                  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({
+                      type: 'SEND_NOTIFICATION',
+                      payload: {
+                        title: notificationTitle,
+                        ...notificationOptions
+                      }
+                    });
+                  } else {
+                    // Fallback al método del servicio
+                    await NotificationService.showNotification(
+                      notificationTitle,
+                      notificationOptions
+                    );
                   }
                 }
-              );
+              }
+            } catch (error) {
+              console.error("Error al enviar notificación:", error);
             }
-
-            lastSeen[groupId] = msgId;
-            localStorage.setItem(notifKey, JSON.stringify(lastSeen));
           }
         });
-
-        unsubMessageListeners.set(groupId, unsub);
       });
-      
-      unsubMessageListeners.forEach((unsub, id) => {
-        if (!currentGroupIds.has(id)) {
-          unsub();
-          unsubMessageListeners.delete(id);
-        }
-      });
-    });
 
-    return () => {
-      unsubGroups();
-      unsubMessageListeners.forEach((unsub) => unsub());
+      return () => unsubs.forEach(unsub => unsub());
     };
-  }, [userData, showToast, location.pathname, navigate]); 
+
+    fetchGroups();
+  }, [userData, location.pathname, processedMsgIds, navigate, showToast]);
 
   return null;
 }
