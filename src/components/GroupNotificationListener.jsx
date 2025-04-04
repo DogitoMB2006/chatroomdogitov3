@@ -81,18 +81,42 @@ export default function GroupNotificationListener() {
             // Si el usuario ha habilitado notificaciones y la página no está enfocada o no estamos en el chat del grupo
             if (NotificationService.isEnabled() && (!isPageVisible || currentPath !== groupPath)) {
               const messageText = data.text || (data.image ? "📷 Imagen" : "");
-              NotificationService.showNotification(
-                `${data.from} en ${group.name}`,
-                {
-                  body: messageText,
-                  icon: data.photoURL || '/default-group.png', // Reemplaza con tu icono de grupo por defecto
-                  onClick: function() {
-                    window.focus();
-                    navigate(`/chat/group/${groupId}`);
-                    this.close();
+              
+              // Preparar datos para la notificación
+              const notificationTitle = `${data.from} en ${group.name}`;
+              const notificationOptions = {
+                body: messageText,
+                icon: data.photoURL || '/default-group.png',
+                data: {
+                  url: `/chat/group/${groupId}`,
+                  messageId: msgId,
+                  groupId: groupId
+                },
+                requireInteraction: false
+              };
+              
+              // Usar Service Worker si está disponible
+              if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+                console.log('Enviando notificación de grupo a través del Service Worker');
+                navigator.serviceWorker.controller.postMessage({
+                  type: 'SEND_NOTIFICATION',
+                  payload: {
+                    title: notificationTitle,
+                    ...notificationOptions
                   }
+                });
+              } else {
+                // Fallback a la API de notificaciones directamente
+                console.log('Service Worker no disponible, usando notificación directa');
+                try {
+                  new Notification(notificationTitle, {
+                    body: messageText,
+                    icon: data.photoURL || '/default-group.png'
+                  });
+                } catch (error) {
+                  console.error("Error al mostrar notificación de grupo:", error);
                 }
-              );
+              }
             }
 
             lastSeen[groupId] = msgId;
