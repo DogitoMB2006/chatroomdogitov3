@@ -1,251 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MdPlayArrow, MdPause, MdFullscreen, MdVolumeUp, MdVolumeMute } from 'react-icons/md';
-
-// Componente de reproductor de video personalizado
-const VideoPlayer = ({ src, poster }) => {
-  const videoRef = useRef(null);
-  const containerRef = useRef(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(1);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isControlsVisible, setIsControlsVisible] = useState(true);
-  const controlsTimeout = useRef(null);
-
-  // Maneja la reproducción/pausa
-  const togglePlay = () => {
-    if (videoRef.current.paused) {
-      videoRef.current.play();
-      setIsPlaying(true);
-    } else {
-      videoRef.current.pause();
-      setIsPlaying(false);
-    }
-  };
-
-  // Maneja el cambio de progreso
-  const handleProgress = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    
-    const progressValue = (video.currentTime / video.duration) * 100;
-    setProgress(progressValue);
-    setCurrentTime(video.currentTime);
-  };
-
-  // Formatea el tiempo en MM:SS
-  const formatTime = (timeInSeconds) => {
-    const minutes = Math.floor(timeInSeconds / 60);
-    const seconds = Math.floor(timeInSeconds % 60);
-    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-  };
-
-  // Maneja los eventos de carga de metadatos
-  const handleLoadedMetadata = () => {
-    setDuration(videoRef.current.duration);
-  };
-
-  // Maneja el cambio de progreso manual
-  const handleProgressChange = (e) => {
-    const newTime = (e.target.value / 100) * duration;
-    videoRef.current.currentTime = newTime;
-    setProgress(e.target.value);
-    setCurrentTime(newTime);
-  };
-
-  // Maneja el cambio de volumen
-  const handleVolumeChange = (e) => {
-    const newVolume = e.target.value / 100;
-    videoRef.current.volume = newVolume;
-    setVolume(newVolume);
-    setIsMuted(newVolume === 0);
-  };
-
-  // Alterna el mute
-  const toggleMute = () => {
-    videoRef.current.muted = !isMuted;
-    setIsMuted(!isMuted);
-    if (isMuted) {
-      videoRef.current.volume = volume || 0.5;
-    } else {
-      setVolume(videoRef.current.volume);
-    }
-  };
-
-  // Maneja el modo pantalla completa
-  const toggleFullscreen = () => {
-    const container = containerRef.current;
-    
-    if (!document.fullscreenElement && !document.mozFullScreenElement &&
-        !document.webkitFullscreenElement && !document.msFullscreenElement) {
-      // Entrar a pantalla completa
-      if (container.requestFullscreen) {
-        container.requestFullscreen();
-      } else if (container.msRequestFullscreen) {
-        container.msRequestFullscreen();
-      } else if (container.mozRequestFullScreen) {
-        container.mozRequestFullScreen();
-      } else if (container.webkitRequestFullscreen) {
-        container.webkitRequestFullscreen();
-      }
-      setIsFullscreen(true);
-    } else {
-      // Salir de pantalla completa
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      } else if (document.msExitFullscreen) {
-        document.msExitFullscreen();
-      } else if (document.mozCancelFullScreen) {
-        document.mozCancelFullScreen();
-      } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-      }
-      setIsFullscreen(false);
-    }
-  };
-
-  // Maneja la visibilidad de los controles
-  const showControls = () => {
-    setIsControlsVisible(true);
-    
-    if (controlsTimeout.current) {
-      clearTimeout(controlsTimeout.current);
-    }
-    
-    if (isPlaying) {
-      controlsTimeout.current = setTimeout(() => {
-        setIsControlsVisible(false);
-      }, 3000);
-    }
-  };
-
-  // Escucha cambios en el fullscreen
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(
-        !!document.fullscreenElement || 
-        !!document.mozFullScreenElement ||
-        !!document.webkitFullscreenElement || 
-        !!document.msFullscreenElement
-      );
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('msfullscreenchange', handleFullscreenChange);
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('msfullscreenchange', handleFullscreenChange);
-    };
-  }, []);
-
-  return (
-    <div 
-      ref={containerRef}
-      className={`relative rounded-lg overflow-hidden shadow-lg ${isFullscreen ? 'w-screen h-screen' : 'w-full aspect-video'}`}
-      onMouseMove={showControls}
-      onMouseLeave={() => isPlaying && setIsControlsVisible(false)}
-    >
-      <video
-        ref={videoRef}
-        className="w-full h-full object-contain bg-black"
-        poster={poster}
-        onClick={togglePlay}
-        onTimeUpdate={handleProgress}
-        onLoadedMetadata={handleLoadedMetadata}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        onEnded={() => setIsPlaying(false)}
-      >
-        <source src={src} type="video/mp4" />
-        Tu navegador no soporta la reproducción de videos.
-      </video>
-
-      {/* Overlay de reproducción central */}
-      {!isPlaying && (
-        <div 
-          className="absolute inset-0 flex items-center justify-center cursor-pointer z-10"
-          onClick={togglePlay}
-        >
-          <div className="bg-purple-600 bg-opacity-80 rounded-full p-4 shadow-lg transform transition-transform hover:scale-110">
-            <MdPlayArrow className="text-white text-4xl" />
-          </div>
-        </div>
-      )}
-
-      {/* Controles inferiores */}
-      <div 
-        className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 transition-opacity duration-300 ${isControlsVisible || !isPlaying ? 'opacity-100' : 'opacity-0'}`}
-      >
-        {/* Barra de progreso */}
-        <div className="flex items-center mb-2">
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={progress}
-            onChange={handleProgressChange}
-            className="w-full h-1 bg-gray-300 rounded-full appearance-none cursor-pointer focus:outline-none"
-            style={{
-              background: `linear-gradient(to right, #9333ea ${progress}%, rgba(255,255,255,0.3) ${progress}%)`,
-            }}
-          />
-        </div>
-
-        {/* Botones y tiempo */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <button 
-              onClick={togglePlay}
-              className="text-white hover:text-purple-400 focus:outline-none"
-            >
-              {isPlaying ? <MdPause size={24} /> : <MdPlayArrow size={24} />}
-            </button>
-
-            <div className="flex items-center space-x-2">
-              <button 
-                onClick={toggleMute}
-                className="text-white hover:text-purple-400 focus:outline-none"
-              >
-                {isMuted ? <MdVolumeMute size={24} /> : <MdVolumeUp size={24} />}
-              </button>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={isMuted ? 0 : volume * 100}
-                onChange={handleVolumeChange}
-                className="w-16 md:w-24 h-1 bg-gray-300 rounded-full appearance-none cursor-pointer focus:outline-none hidden sm:block"
-                style={{
-                  background: `linear-gradient(to right, white ${isMuted ? 0 : volume * 100}%, rgba(255,255,255,0.3) ${isMuted ? 0 : volume * 100}%)`,
-                }}
-              />
-            </div>
-
-            <span className="text-white text-xs sm:text-sm">
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </span>
-          </div>
-
-          <button 
-            onClick={toggleFullscreen}
-            className="text-white hover:text-purple-400 focus:outline-none"
-          >
-            <MdFullscreen size={24} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 export default function Home() {
   const navigate = useNavigate();
@@ -343,13 +97,52 @@ export default function Home() {
             <div className="p-6 w-full">
               <div className="font-bold text-xl mb-2 text-gray-800">Cómo instalar DogiCord en Android</div>
               <p className="text-gray-600 mb-4">
-                Aprende a instalar la aplicación en tu dispositivo Android usando el navegador Brave, ojo tambien puede usanr chrome es lo mismo balsa de vagos.
+                Aprende a instalar nuestra aplicación en tu dispositivo Android usando el navegador Brave.
               </p>
-              <div className="mt-4 w-full max-w-3xl mx-auto">
-                <VideoPlayer 
-                  src="/public/forandroid.mp4" 
-                  poster="/android-tutorial-poster.jpg" 
-                />
+              <div className="mt-4 w-full max-w-3xl mx-auto rounded-lg overflow-hidden shadow-lg bg-gray-900 video-container">
+                <style jsx>{`
+                  .video-container {
+                    position: relative;
+                    width: 100%;
+                    aspect-ratio: 16/9;
+                  }
+                  
+                  .video-container video {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: contain;
+                  }
+                  
+                  /* Cambio de estilo cuando está en pantalla completa */
+                  :fullscreen .video-container,
+                  :-webkit-full-screen .video-container,
+                  :-moz-full-screen .video-container,
+                  :-ms-fullscreen .video-container {
+                    width: 100vw !important;
+                    height: 100vh !important;
+                    aspect-ratio: unset;
+                  }
+                  
+                  :fullscreen video,
+                  :-webkit-full-screen video,
+                  :-moz-full-screen video,
+                  :-ms-fullscreen video {
+                    width: auto !important;
+                    height: auto !important;
+                    max-width: 100% !important;
+                    max-height: 100% !important;
+                  }
+                `}</style>
+                <video 
+                  controls 
+                  playsInline
+                  preload="metadata"
+                  poster="/android-tutorial-poster.jpg"
+                  className="video-player"
+                >
+                  <source src="/forandroid.mp4" type="video/mp4" />
+                  Tu navegador no soporta la reproducción de videos.
+                </video>
               </div>
               <div className="mt-4 text-sm text-gray-600">
                 <p>Sigue estos pasos para instalar DogiCord en tu dispositivo Android:</p>
@@ -357,7 +150,7 @@ export default function Home() {
                   <li>Descarga e instala el navegador Brave desde Google Play Store</li>
                   <li>Abre DogiCord en Brave y navega a la configuración</li>
                   <li>Selecciona "Añadir a pantalla de inicio"</li>
-                  <li>Y wow! gran vaina!, que dificil!! </li>
+                  <li>¡Disfruta de DogiCord como una aplicación nativa!</li>
                 </ol>
               </div>
             </div>
