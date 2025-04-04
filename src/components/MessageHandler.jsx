@@ -14,7 +14,8 @@ import {
   doc,
   getDocs,
   deleteDoc,
-  writeBatch
+  writeBatch,
+  getDoc
 } from "firebase/firestore";
 import {
   ref,
@@ -29,9 +30,11 @@ import {
   MdReply, 
   MdSend, 
   MdEmojiEmotions,
-  MdGif
+  MdGif,
+  MdBlock
 } from "react-icons/md";
 import Staff from "../components/Staff";
+import { toast } from "react-toastify";
 
 // Mapa de hashtags a rutas
 const ROUTE_HASHTAGS = {
@@ -45,7 +48,7 @@ const ROUTE_HASHTAGS = {
 // Expresión regular para detectar hashtags de rutas
 const HASHTAG_REGEX = /#(home|login|register|chat|editprofile)\b/g;
 
-export default function MessageHandler({ receiver }) {
+export default function MessageHandler({ receiver, isBlocked }) {
   const { userData } = useContext(AuthContext);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
@@ -58,6 +61,33 @@ export default function MessageHandler({ receiver }) {
   const messagesEndRef = useRef(null);
   const isMountedRef = useRef(true);
   const navigate = useNavigate();
+  const [hasBlockedMe, setHasBlockedMe] = useState(false);
+  const [iHaveBlocked, setIHaveBlocked] = useState(false);
+  const [showCantSendMessage, setShowCantSendMessage] = useState(false);
+
+  // Verificar el estado de bloqueo
+  useEffect(() => {
+    const checkBlockStatus = async () => {
+      if (!userData || !receiver) return;
+      
+      try {
+        // Verificar si yo he bloqueado al receptor
+        const myBlockDocRef = doc(db, "blockedUsers", `${userData.username}_${receiver}`);
+        const myBlockDoc = await getDoc(myBlockDocRef);
+        const blocked = myBlockDoc.exists();
+        setIHaveBlocked(blocked);
+        
+        // Verificar si el receptor me ha bloqueado
+        const theirBlockDocRef = doc(db, "blockedUsers", `${receiver}_${userData.username}`);
+        const theirBlockDoc = await getDoc(theirBlockDocRef);
+        setHasBlockedMe(theirBlockDoc.exists());
+      } catch (error) {
+        console.error("Error al verificar estado de bloqueo:", error);
+      }
+    };
+    
+    checkBlockStatus();
+  }, [userData, receiver, isBlocked]);
 
   useEffect(() => {
     const getReceiverData = async () => {
@@ -76,6 +106,11 @@ export default function MessageHandler({ receiver }) {
       if (!userData || !receiver) return;
 
       try {
+        // No marcar mensajes como leídos si el usuario está bloqueado
+        if (iHaveBlocked) {
+          console.log("Usuario bloqueado, no se marcarán mensajes como leídos");
+          return;
+        }
         
         const messagesRef = collection(db, "messages");
         const q = query(
@@ -103,7 +138,7 @@ export default function MessageHandler({ receiver }) {
     };
 
     markMessagesAsRead();
-  }, [userData, receiver]);
+  }, [userData, receiver, iHaveBlocked]);
 
 
   useEffect(() => {
@@ -127,9 +162,9 @@ export default function MessageHandler({ receiver }) {
           (data.from === userData.username && data.to === receiver) ||
           (data.from === receiver && data.to === userData.username);
 
+        // Mostrar mensajes solo si no hay bloqueo, o si son mensajes del usuario actual
         if (isBetween) {
-        
-          if (data.to === userData.username && !data.read) {
+          if (data.to === userData.username && !data.read && !iHaveBlocked) {
             unreadMessages.push(docSnap.id);
           }
 
@@ -139,8 +174,8 @@ export default function MessageHandler({ receiver }) {
 
       setMessages(filtered);
       
-      // Marcar mensajes como leídos (en segundo plano)
-      if (unreadMessages.length > 0) {
+      // Marcar mensajes como leídos (en segundo plano), pero solo si no hay bloqueo
+      if (unreadMessages.length > 0 && !iHaveBlocked) {
         const batch = writeBatch(db);
         
         unreadMessages.forEach((msgId) => {
@@ -157,7 +192,7 @@ export default function MessageHandler({ receiver }) {
       unsub();
       isMountedRef.current = false;
     };
-  }, [userData, receiver]);
+  }, [userData, receiver, iHaveBlocked]);
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -169,6 +204,35 @@ export default function MessageHandler({ receiver }) {
 
   const sendMessage = async (e) => {
     e?.preventDefault();
+    
+    // Verificar nuevamente si hay bloqueo
+    const isAnyBlockActive = iHaveBlocked || hasBlockedMe || isBlocked;
+    
+    if (isAnyBlockActive) {
+      // Mostrar mensaje temporal
+      setShowCantSendMessage(true);
+      setTimeout(() => setShowCantSendMessage(false), 3000);
+      return;
+    }
+    
+    // Verificar bloqueo una vez más antes de enviar (consulta en tiempo real)
+    try {
+      const myBlockDocRef = doc(db, "blockedUsers", `${userData.username}_${receiver}`);
+      const theirBlockDocRef = doc(db, "blockedUsers", `${receiver}_${userData.username}`);
+      
+      const [myBlockDoc, theirBlockDoc] = await Promise.all([
+        getDoc(myBlockDocRef),
+        getDoc(theirBlockDocRef)
+      ]);
+      
+      if (myBlockDoc.exists() || theirBlockDoc.exists()) {
+        toast.error("No puedes enviar mensajes debido a un bloqueo");
+        return;
+      }
+    } catch (error) {
+      console.error("Error al verificar bloqueo:", error);
+    }
+    
     if (text.trim() === '' && !image) return;
   
     let imageUrl = null;
@@ -308,9 +372,34 @@ export default function MessageHandler({ receiver }) {
   };
 
   const messageGroups = groupMessagesByDate();
+  
+  // Determinar si hay algún tipo de bloqueo
+  const isAnyBlockActive = isBlocked || iHaveBlocked || hasBlockedMe;
 
   return (
     <div className="flex flex-col h-full">
+      {/* Notificación de bloqueo */}
+      {isAnyBlockActive && (
+        <div className="bg-red-900 bg-opacity-75 p-4 text-white text-center">
+          {iHaveBlocked ? (
+            <div className="flex items-center justify-center space-x-2">
+              <MdBlock size={20} />
+              <span>Has bloqueado a este usuario. No puedes enviar ni recibir mensajes.</span>
+            </div>
+          ) : hasBlockedMe ? (
+            <div className="flex items-center justify-center space-x-2">
+              <MdBlock size={20} />
+              <span>Este usuario te ha bloqueado. No puedes enviar mensajes.</span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center space-x-2">
+              <MdBlock size={20} />
+              <span>No puedes interactuar con este usuario.</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Overlay de imagen previa */}
       {previewImage && (
         <div
@@ -325,8 +414,15 @@ export default function MessageHandler({ receiver }) {
         </div>
       )}
 
+      {/* Mostrar mensaje de no poder enviar */}
+      {showCantSendMessage && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-red-800 text-white px-4 py-2 rounded-md shadow-lg z-50 animate-fade-in">
+          No puedes enviar mensajes a este usuario debido a un bloqueo
+        </div>
+      )}
+
       {/* Área de mensajes */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${isAnyBlockActive ? 'opacity-75' : ''}`}>
         {Object.entries(messageGroups).map(([date, msgs]) => (
           <div key={date} className="space-y-2">
             {/* Divisor de fecha */}
@@ -419,26 +515,28 @@ export default function MessageHandler({ receiver }) {
                     </div>
                   </div>
 
-                  {/* Botones de acción */}
-                  <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition">
-                    <button
-                      onClick={() => setReplyTo({ from: msg.from, text: msg.text || (msg.image ? "[Imagen]" : "") })}
-                      className="bg-gray-800 text-gray-300 p-1 rounded hover:bg-gray-700 transition-colors"
-                      title="Responder"
-                    >
-                      <MdReply size={16} />
-                    </button>
-                    
-                    {isMine && (
+                  {/* Botones de acción (deshabilitados si hay bloqueo) */}
+                  {!isAnyBlockActive && (
+                    <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition">
                       <button
-                        onClick={() => handleDelete(msg)}
-                        className="bg-red-900 text-red-100 p-1 rounded hover:bg-red-800 transition-colors"
-                        title="Eliminar mensaje"
+                        onClick={() => setReplyTo({ from: msg.from, text: msg.text || (msg.image ? "[Imagen]" : "") })}
+                        className="bg-gray-800 text-gray-300 p-1 rounded hover:bg-gray-700 transition-colors"
+                        title="Responder"
                       >
-                        <MdDelete size={16} />
+                        <MdReply size={16} />
                       </button>
-                    )}
-                  </div>
+                      
+                      {isMine && (
+                        <button
+                          onClick={() => handleDelete(msg)}
+                          className="bg-red-900 text-red-100 p-1 rounded hover:bg-red-800 transition-colors"
+                          title="Eliminar mensaje"
+                        >
+                          <MdDelete size={16} />
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   {/* Avatar propio (solo en el primer mensaje del grupo) */}
                   {isMine && isFirstInGroup && (
@@ -462,7 +560,7 @@ export default function MessageHandler({ receiver }) {
       </div>
 
       {/* Área de respuesta */}
-      {replyTo && (
+      {replyTo && !isAnyBlockActive && (
         <div className="bg-gray-800 border-l-4 border-indigo-500 px-3 py-2 mx-2 mb-2 text-sm rounded flex justify-between items-center text-gray-200">
           <div className="flex items-center">
             Respondiendo a <strong className="mx-1">{replyTo.from}</strong>
@@ -479,78 +577,93 @@ export default function MessageHandler({ receiver }) {
       )}
 
       {/* Formulario de entrada */}
-      <form onSubmit={sendMessage} className="border-t border-gray-700 px-3 py-3 bg-gray-800">
-        {image && (
-          <div className="mb-2 bg-gray-750 p-2 rounded text-sm text-gray-300 flex justify-between items-center">
-            <span>
-              Imagen: <strong className="text-gray-200">{image.name}</strong> 
-              ({Math.round(image.size / 1024)} KB)
+      {isAnyBlockActive ? (
+        <div className="border-t border-gray-700 px-3 py-4 bg-gray-800">
+          <div className="bg-gray-700 rounded-lg p-4 flex items-center justify-center">
+            <MdBlock className="text-red-500 mr-2" size={20} />
+            <span className="text-gray-400">
+              {iHaveBlocked 
+                ? "Has bloqueado a este usuario" 
+                : hasBlockedMe 
+                  ? "Este usuario te ha bloqueado" 
+                  : "No puedes enviar mensajes"
+              }
             </span>
-            <button 
-              type="button"
-              onClick={() => setImage(null)}
-              className="text-red-400 hover:text-red-300"
-            >
-              <MdDelete />
-            </button>
           </div>
-        )}
-        
-        <div className="flex items-center gap-2">
-          <div className="flex space-x-1">
-            <button
-              type="button"
-              onClick={handleImageClick}
-              className="text-gray-400 hover:text-gray-200 p-2 rounded-full hover:bg-gray-700"
-              title="Adjuntar imagen"
-            >
-              <MdImage size={20} />
-            </button>
-            <button
-              type="button"
-              className="text-gray-400 hover:text-gray-200 p-2 rounded-full hover:bg-gray-700"
-              title="Insertar emoji"
-            >
-              <MdEmojiEmotions size={20} />
-            </button>
-            <button
-              type="button"
-              className="text-gray-400 hover:text-gray-200 p-2 rounded-full hover:bg-gray-700"
-              title="Añadir GIF"
-            >
-              <MdGif size={20} />
-            </button>
-          </div>
-          
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept="image/*"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-
-          <input
-            type="text"
-            placeholder="Envía un mensaje... Usa #home o #chat para navegación"
-            className="flex-1 bg-gray-700 border border-gray-600 rounded-full px-4 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          />
-
-          <button
-            type="submit"
-            className={`p-2 rounded-full ${
-              text.trim() || image
-                ? "bg-indigo-600 hover:bg-indigo-700 text-white" 
-                : "bg-gray-700 text-gray-500 cursor-not-allowed"
-            }`}
-            disabled={!text.trim() && !image}
-          >
-            <MdSend size={20} />
-          </button>
         </div>
-      </form>
+      ) : (
+        <form onSubmit={sendMessage} className="border-t border-gray-700 px-3 py-3 bg-gray-800">
+          {image && (
+            <div className="mb-2 bg-gray-750 p-2 rounded text-sm text-gray-300 flex justify-between items-center">
+              <span>
+                Imagen: <strong className="text-gray-200">{image.name}</strong> 
+                ({Math.round(image.size / 1024)} KB)
+              </span>
+              <button 
+                type="button"
+                onClick={() => setImage(null)}
+                className="text-red-400 hover:text-red-300"
+              >
+                <MdDelete />
+              </button>
+            </div>
+          )}
+          
+          <div className="flex items-center gap-2">
+            <div className="flex space-x-1">
+              <button
+                type="button"
+                onClick={handleImageClick}
+                className="text-gray-400 hover:text-gray-200 p-2 rounded-full hover:bg-gray-700"
+                title="Adjuntar imagen"
+              >
+                <MdImage size={20} />
+              </button>
+              <button
+                type="button"
+                className="text-gray-400 hover:text-gray-200 p-2 rounded-full hover:bg-gray-700"
+                title="Insertar emoji"
+              >
+                <MdEmojiEmotions size={20} />
+              </button>
+              <button
+                type="button"
+                className="text-gray-400 hover:text-gray-200 p-2 rounded-full hover:bg-gray-700"
+                title="Añadir GIF"
+              >
+                <MdGif size={20} />
+              </button>
+            </div>
+            
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+
+            <input
+              type="text"
+              placeholder="Envía un mensaje... Usa #home o #chat para navegación"
+              className="flex-1 bg-gray-700 border border-gray-600 rounded-full px-4 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+
+            <button
+              type="submit"
+              className={`p-2 rounded-full ${
+                text.trim() || image
+                  ? "bg-indigo-600 hover:bg-indigo-700 text-white" 
+                  : "bg-gray-700 text-gray-500 cursor-not-allowed"
+              }`}
+              disabled={!text.trim() && !image}>
+              <MdSend size={20} />
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

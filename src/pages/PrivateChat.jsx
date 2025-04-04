@@ -2,6 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useContext, useState, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
 import MessageHandler from "../components/MessageHandler";
+import BlockUser from "../components/BlockUser";
 import { db } from "../firebase/config";
 import { 
   collection, 
@@ -11,9 +12,10 @@ import {
   updateDoc,
   onSnapshot,
   orderBy,
-  doc
+  doc,
+  getDoc
 } from "firebase/firestore";
-import { MdArrowBack, MdMoreVert, MdCall, MdVideocam, MdClose } from "react-icons/md";
+import { MdArrowBack, MdMoreVert, MdCall, MdVideocam, MdClose, MdBlock } from "react-icons/md";
 import { listenToUserStatus } from "../utils/onlineStatus";
 
 export default function PrivateChat() {
@@ -23,6 +25,50 @@ export default function PrivateChat() {
   const [receiverData, setReceiverData] = useState(null);
   const [showUserInfo, setShowUserInfo] = useState(false);
   const [isUserOnline, setIsUserOnline] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [hasBlockedMe, setHasBlockedMe] = useState(false);
+
+  // Verificar estado de bloqueo al cargar y en tiempo real
+  useEffect(() => {
+    if (!userData || !username) return;
+
+    const checkBlockStatus = async () => {
+      try {
+        // Verificar si el usuario actual ha bloqueado al receptor
+        const blockDocRef = doc(db, "blockedUsers", `${userData.username}_${username}`);
+        const blockDoc = await getDoc(blockDocRef);
+        setIsBlocked(blockDoc.exists());
+
+        // Verificar si el receptor ha bloqueado al usuario actual
+        const reverseBlockDocRef = doc(db, "blockedUsers", `${username}_${userData.username}`);
+        const reverseBlockDoc = await getDoc(reverseBlockDocRef);
+        setHasBlockedMe(reverseBlockDoc.exists());
+      } catch (error) {
+        console.error("Error al verificar estado de bloqueo:", error);
+      }
+    };
+
+    // Verificación inicial
+    checkBlockStatus();
+
+    // Configurar listener para cambios en la colección de usuarios bloqueados
+    const blockRef = collection(db, "blockedUsers");
+    const q1 = query(blockRef, where("blocker", "==", userData.username), where("blocked", "==", username));
+    const q2 = query(blockRef, where("blocker", "==", username), where("blocked", "==", userData.username));
+
+    const unsubscribe1 = onSnapshot(q1, (snapshot) => {
+      setIsBlocked(!snapshot.empty);
+    });
+
+    const unsubscribe2 = onSnapshot(q2, (snapshot) => {
+      setHasBlockedMe(!snapshot.empty);
+    });
+
+    return () => {
+      unsubscribe1();
+      unsubscribe2();
+    };
+  }, [userData, username]);
 
   // Fetch receiver's data
   useEffect(() => {
@@ -46,9 +92,9 @@ export default function PrivateChat() {
     return () => unsubscribe();
   }, [username]);
 
-  // Marcar mensajes como leídos al entrar al chat
+  // Marcar mensajes como leídos al entrar al chat (solo si no hay bloqueo)
   useEffect(() => {
-    if (!userData) return;
+    if (!userData || isBlocked) return;
 
     const messagesRef = collection(db, "messages");
     const q = query(
@@ -71,7 +117,7 @@ export default function PrivateChat() {
       }});
 
       return () => unsubscribe();
-    }, [userData, username]);
+    }, [userData, username, isBlocked]);
   
     const goBack = () => {
       navigate("/chat");
@@ -80,6 +126,19 @@ export default function PrivateChat() {
     const toggleUserInfo = () => {
       setShowUserInfo(!showUserInfo);
     };
+  
+    // Manejar cambios en el estado de bloqueo
+    const handleBlockStatusChange = (newStatus) => {
+      setIsBlocked(newStatus);
+      
+      // Si acabamos de bloquear al usuario, forzar una actualización de la interfaz
+      if (newStatus) {
+        console.log("Usuario bloqueado, actualizando interfaz...");
+      }
+    };
+
+    // Determinar si hay algún tipo de bloqueo activo
+    const isAnyBlockActive = isBlocked || hasBlockedMe;
   
     return (
       <div className="h-screen flex flex-col bg-gray-900 text-gray-100 w-full overflow-hidden">
@@ -103,15 +162,26 @@ export default function PrivateChat() {
                     <div className="w-full h-full flex items-center justify-center text-sm text-gray-300">😶</div>
                   )}
                 </div>
-                {isUserOnline && (
+                {isUserOnline && !isAnyBlockActive && (
                   <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-800"></div>
+                )}
+                {isAnyBlockActive && (
+                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-gray-800"></div>
                 )}
               </div>
               
               <div>
-                <h2 className="font-medium text-gray-100 truncate max-w-[150px]">{username}</h2>
+                <h2 className="font-medium text-gray-100 truncate max-w-[150px] flex items-center">
+                  {username}
+                  {isBlocked && (
+                    <span className="ml-2 text-xs bg-red-500 text-white px-1 py-0.5 rounded">Bloqueado</span>
+                  )}
+                  {hasBlockedMe && (
+                    <span className="ml-2 text-xs bg-gray-500 text-white px-1 py-0.5 rounded">Te bloqueó</span>
+                  )}
+                </h2>
                 <p className="text-xs text-gray-400">
-                  {isUserOnline ? "En línea" : "Desconectado"}
+                  {isAnyBlockActive ? "Bloqueado" : (isUserOnline ? "En línea" : "Desconectado")}
                 </p>
               </div>
             </div>
@@ -119,14 +189,16 @@ export default function PrivateChat() {
           
           <div className="flex items-center space-x-1">
             <button 
-              className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700 hidden sm:block"
+              className={`text-gray-400 p-2 rounded-full ${isAnyBlockActive ? 'opacity-50 cursor-not-allowed' : 'hover:text-white hover:bg-gray-700'} hidden sm:block`}
               aria-label="Call"
+              disabled={isAnyBlockActive}
             >
               <MdCall size={22} />
             </button>
             <button 
-              className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700 hidden sm:block"
+              className={`text-gray-400 p-2 rounded-full ${isAnyBlockActive ? 'opacity-50 cursor-not-allowed' : 'hover:text-white hover:bg-gray-700'} hidden sm:block`}
               aria-label="Video call"
+              disabled={isAnyBlockActive}
             >
               <MdVideocam size={22} />
             </button>
@@ -144,8 +216,28 @@ export default function PrivateChat() {
         <div className="flex flex-1 overflow-hidden relative">
           {/* Main chat content */}
           <div className="flex-1 flex flex-col">
+            {/* Mensaje de bloqueo */}
+            {isAnyBlockActive && (
+              <div className="bg-red-900 bg-opacity-75 p-4 text-white text-center">
+                {isBlocked ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <MdBlock size={20} />
+                    <span>Has bloqueado a este usuario. No puedes enviar ni recibir mensajes.</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center space-x-2">
+                    <MdBlock size={20} />
+                    <span>Este usuario te ha bloqueado. No puedes enviar mensajes.</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto bg-gray-900 px-1 sm:px-3">
-              <MessageHandler receiver={username} />
+              <MessageHandler 
+                receiver={username} 
+                isBlocked={isAnyBlockActive} 
+              />
             </div>
           </div>
           
@@ -173,9 +265,14 @@ export default function PrivateChat() {
                           <div className="w-full h-full flex items-center justify-center text-2xl text-gray-300">😶</div>
                         )}
                       </div>
-                      <h4 className="font-bold text-xl truncate max-w-full">{username}</h4>
+                      <h4 className="font-bold text-xl truncate max-w-full">
+                        {username}
+                        {isBlocked && (
+                          <span className="ml-2 text-xs bg-red-500 text-white px-1 py-0.5 rounded">Bloqueado</span>
+                        )}
+                      </h4>
                       <p className="text-sm text-gray-400">
-                        {isUserOnline ? "En línea" : "Desconectado"}
+                        {isAnyBlockActive ? "Bloqueado" : (isUserOnline ? "En línea" : "Desconectado")}
                       </p>
                     </div>
                     
@@ -197,12 +294,18 @@ export default function PrivateChat() {
                     </div>
                     
                     <div className="pt-4 border-t border-gray-700 flex flex-col space-y-3">
-                      <button className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 rounded text-white transition-colors">
+                      <button 
+                        className={`w-full py-2 bg-indigo-600 hover:bg-indigo-700 rounded text-white transition-colors ${
+                          isAnyBlockActive ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                        disabled={isAnyBlockActive}
+                      >
                         Enviar mensaje
                       </button>
-                      <button className="w-full py-2 bg-red-600 hover:bg-red-700 rounded text-white transition-colors">
-                        Bloquear usuario
-                      </button>
+                      <BlockUser 
+                        username={username} 
+                        onBlockStatusChange={handleBlockStatusChange} 
+                      />
                     </div>
                   </div>
                 )}
@@ -225,9 +328,14 @@ export default function PrivateChat() {
                         <div className="w-full h-full flex items-center justify-center text-2xl text-gray-300">😶</div>
                       )}
                     </div>
-                    <h4 className="font-bold text-xl">{username}</h4>
+                    <h4 className="font-bold text-xl">
+                      {username}
+                      {isBlocked && (
+                        <span className="ml-2 text-xs bg-red-500 text-white px-1 py-0.5 rounded">Bloqueado</span>
+                      )}
+                    </h4>
                     <p className="text-sm text-gray-400">
-                      {isUserOnline ? "En línea" : "Desconectado"}
+                      {isAnyBlockActive ? "Bloqueado" : (isUserOnline ? "En línea" : "Desconectado")}
                     </p>
                   </div>
                   
@@ -249,12 +357,18 @@ export default function PrivateChat() {
                   </div>
                   
                   <div className="pt-4 border-t border-gray-700 flex flex-col space-y-3">
-                    <button className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 rounded text-white transition-colors">
+                    <button 
+                      className={`w-full py-2 bg-indigo-600 hover:bg-indigo-700 rounded text-white transition-colors ${
+                        isAnyBlockActive ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                      disabled={isAnyBlockActive}
+                    >
                       Enviar mensaje
                     </button>
-                    <button className="w-full py-2 bg-red-600 hover:bg-red-700 rounded text-white transition-colors">
-                      Bloquear usuario
-                    </button>
+                    <BlockUser 
+                      username={username} 
+                      onBlockStatusChange={handleBlockStatusChange} 
+                    />
                   </div>
                 </div>
               )}
