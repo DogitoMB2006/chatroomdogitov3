@@ -43,6 +43,8 @@ export default function Chats() {
   // Referencia para evitar duplicación en las actualizaciones de contadores
   const processedMessagesRef = useRef(new Set());
   const unreadCountsTimerRef = useRef(null);
+  // Referencia para el último userData recibido
+  const lastUserDataRef = useRef(null);
 
   // Optimización: Función de navegación mejorada con protección contra doble clic
   const handleNavigation = useCallback((path, id) => {
@@ -87,59 +89,107 @@ export default function Chats() {
     };
   }, []);
 
-  // Obtener amigos - Optimizado para usar caché y reducir consultas
+  // NUEVA IMPLEMENTACIÓN: Escuchar cambios en tiempo real en el documento del usuario
   useEffect(() => {
-    const fetchFriends = async () => {
-      if (!userData?.friends || userData.friends.length === 0) {
-        setFriends([]);
-        setIsLoading(false);
-        return;
+    if (!user?.uid) return;
+    
+    // Listener para cambios en el documento del usuario actual
+    const userDocRef = doc(db, "users", user.uid);
+    
+    const unsubscribe = onSnapshot(userDocRef, (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        // Verificamos si la lista de amigos ha cambiado
+        const currentUserData = docSnapshot.data();
+        const previousUserData = lastUserDataRef.current;
+        
+        // Si la lista de amigos ha cambiado, limpiar caché y forzar recarga
+        if (previousUserData && 
+            JSON.stringify(previousUserData.friends) !== JSON.stringify(currentUserData.friends)) {
+          console.log("Lista de amigos actualizada, recargando datos");
+          // Limpiar caché de amigos
+          sessionStorage.removeItem('friends_data');
+          sessionStorage.removeItem('friends_timestamp');
+          // Forzar recarga con los nuevos datos
+          fetchFriends(currentUserData);
+        }
+        
+        // Actualizar referencia
+        lastUserDataRef.current = currentUserData;
       }
+    });
+    
+    return () => unsubscribe();
+  }, [user?.uid]);
 
-      try {
-        // Usamos sessionStorage para cachear los datos de amigos
+  // Función para obtener amigos - Ahora separada para poder llamarla después de aceptar solicitudes
+  const fetchFriends = useCallback(async (currentUserData) => {
+    // Usar userData del contexto si no se proporciona explícitamente
+    const userDataToUse = currentUserData || userData;
+    
+    if (!userDataToUse?.friends || userDataToUse.friends.length === 0) {
+      setFriends([]);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      // Verificar si debemos saltarnos la caché (después de aceptar solicitud)
+      const skipCache = currentUserData !== undefined;
+      
+      // Usar caché solo si no estamos forzando una recarga
+      if (!skipCache) {
         const cachedFriendsData = sessionStorage.getItem('friends_data');
         const cachedTimestamp = sessionStorage.getItem('friends_timestamp');
         const now = Date.now();
         
-        // Usamos caché si existe y tiene menos de 5 minutos
         if (cachedFriendsData && cachedTimestamp && (now - parseInt(cachedTimestamp) < 300000)) {
           setFriends(JSON.parse(cachedFriendsData));
-        } else {
-          // Si no hay caché o está desactualizada, hacemos la consulta
-          const friendData = [];
-          const batchSize = 10; // Procesar en lotes para evitar sobrecarga
-          
-          // Dividir amigos en lotes
-          for (let i = 0; i < userData.friends.length; i += batchSize) {
-            const batch = userData.friends.slice(i, i + batchSize);
-            
-            // Consulta optimizada con una sola consulta por lote usando 'in'
-            const q = query(collection(db, "users"), where("username", "in", batch));
-            const snapshot = await getDocs(q);
-            
-            snapshot.forEach(doc => {
-              friendData.push(doc.data());
-            });
-          }
-          
-          setFriends(friendData);
-          
-          // Guardar en caché
-          sessionStorage.setItem('friends_data', JSON.stringify(friendData));
-          sessionStorage.setItem('friends_timestamp', now.toString());
+          setIsLoading(false);
+          return;
         }
-      } catch (error) {
-        console.error("Error al obtener amigos:", error);
-      } finally {
-        setIsLoading(false);
       }
-    };
-
-    if (userData) {
-      fetchFriends();
+      
+      // Si no hay caché o necesitamos una recarga forzada
+      const friendData = [];
+      const batchSize = 10; // Procesar en lotes para evitar sobrecarga
+      
+      // Dividir amigos en lotes
+      for (let i = 0; i < userDataToUse.friends.length; i += batchSize) {
+        const batch = userDataToUse.friends.slice(i, i + batchSize);
+        
+        // Consulta optimizada con una sola consulta por lote usando 'in'
+        const q = query(collection(db, "users"), where("username", "in", batch));
+        const snapshot = await getDocs(q);
+        
+        snapshot.forEach(doc => {
+          friendData.push(doc.data());
+        });
+      }
+      
+      setFriends(friendData);
+      
+      // Guardar en caché solo si no es una recarga forzada
+      if (!skipCache) {
+        sessionStorage.setItem('friends_data', JSON.stringify(friendData));
+        sessionStorage.setItem('friends_timestamp', Date.now().toString());
+      }
+    } catch (error) {
+      console.error("Error al obtener amigos:", error);
+    } finally {
+      setIsLoading(false);
     }
   }, [userData]);
+
+  // Efecto para cargar amigos al iniciar
+  useEffect(() => {
+    if (userData) {
+      fetchFriends();
+      // Guardar referencia inicial del userData
+      lastUserDataRef.current = userData;
+    }
+  }, [userData, fetchFriends]);
 
   // Listener optimizado para el estado en línea de amigos
   useEffect(() => {
@@ -358,7 +408,7 @@ export default function Chats() {
     return onlineStatuses[username] || false;
   };
 
-  // Manejar aceptación de solicitud de amistad - Optimizado
+  // Manejar aceptación de solicitud de amistad - Mejorado para actualización en tiempo real
   const handleAcceptFriendRequest = async (req) => {
     try {
       const requestRef = doc(db, "friendRequests", req.id);
@@ -388,9 +438,8 @@ export default function Chats() {
           })
         ]);
         
-        // Actualizar el caché de amigos
-        sessionStorage.removeItem('friends_data');
-        sessionStorage.removeItem('friends_timestamp');
+        // No necesitamos limpiar caché o forzar recarga aquí,
+        // porque el listener del documento del usuario lo detectará y actualizará automáticamente
       }
     } catch (error) {
       console.error("Error al aceptar solicitud:", error);
