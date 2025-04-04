@@ -91,7 +91,7 @@ const isValidImageUrl = (url) => {
 };
 
 export default function EditProfile() {
-  const { user, userData } = useContext(AuthContext);
+  const { user, userData, setUserData } = useContext(AuthContext);
   const [imageFile, setImageFile] = useState(null);
   const [originalPreviewURL, setOriginalPreviewURL] = useState(userData?.photoURL || null);
   const [previewURL, setPreviewURL] = useState(userData?.photoURL || null);
@@ -219,6 +219,17 @@ export default function EditProfile() {
       await updateDoc(doc(db, "users", user.uid), {
         photoURL: finalPhotoUrl
       });
+
+      // Update local userData state so it reflects immediately across the app
+      if (userData) {
+        const updatedUserData = {
+          ...userData,
+          photoURL: finalPhotoUrl
+        };
+        
+        // Update the AuthContext with the new user data
+        setUserData(updatedUserData);
+      }
 
       alert("Foto actualizada correctamente");
       navigate("/chat");
