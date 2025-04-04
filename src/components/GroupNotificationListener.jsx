@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import { AuthContext } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { NotificationService } from "../utils/NotificationService";
+import NotificationService from "../utils/NotificationService";
 
 export default function GroupNotificationListener() {
   const { userData } = useContext(AuthContext);
