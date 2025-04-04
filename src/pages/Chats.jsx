@@ -1,6 +1,19 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { AuthContext } from "../context/AuthContext";
-import { collection, getDocs, query, where, onSnapshot, orderBy, limit, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { 
+  collection, 
+  getDocs, 
+  query, 
+  where, 
+  onSnapshot, 
+  orderBy, 
+  limit, 
+  doc, 
+  updateDoc, 
+  deleteDoc,
+  documentId,
+  getDoc
+} from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useNavigate } from "react-router-dom";
 import AddFriend from "../components/AddFriend";
@@ -21,29 +34,106 @@ export default function Chats() {
   const [pendingFriendRequests, setPendingFriendRequests] = useState([]);
   const [showFriendRequestsModal, setShowFriendRequestsModal] = useState(false);
   const [onlineStatuses, setOnlineStatuses] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [isNavigating, setIsNavigating] = useState(false);
   const navigate = useNavigate();
+  const navigationTimeoutRef = useRef(null);
+  const clickedItemRef = useRef(null);
+  
+  // Referencia para evitar duplicación en las actualizaciones de contadores
+  const processedMessagesRef = useRef(new Set());
+  const unreadCountsTimerRef = useRef(null);
 
-  // ELIMINADO: Todo el código relacionado con useOnlineStatus
+  // Optimización: Función de navegación mejorada con protección contra doble clic
+  const handleNavigation = useCallback((path, id) => {
+    // Si ya estamos navegando o hay un timeout activo, ignorar clics adicionales
+    if (isNavigating) {
+      return;
+    }
+    
+    // Marcar que estamos en proceso de navegación
+    setIsNavigating(true);
+    
+    // Proporcionar feedback visual
+    if (clickedItemRef.current) {
+      clickedItemRef.current.classList.remove('bg-indigo-700');
+    }
+    
+    // Guardar referencia del elemento en el que se hizo clic
+    clickedItemRef.current = document.getElementById(id);
+    
+    if (clickedItemRef.current) {
+      clickedItemRef.current.classList.add('bg-indigo-700');
+    }
+    
+    // Ejecutar la navegación con un pequeño retraso para la transición visual
+    clearTimeout(navigationTimeoutRef.current);
+    navigationTimeoutRef.current = setTimeout(() => {
+      navigate(path);
+      // Restablecer el estado después de la navegación
+      setIsNavigating(false);
+      // Limpiar el estilo después de la navegación
+      if (clickedItemRef.current) {
+        clickedItemRef.current.classList.remove('bg-indigo-700');
+      }
+    }, 50);
+  }, [navigate, isNavigating]);
 
-  // Obtener amigos
+  // Limpieza del timeout al desmontar
+  useEffect(() => {
+    return () => {
+      clearTimeout(navigationTimeoutRef.current);
+      clearTimeout(unreadCountsTimerRef.current);
+    };
+  }, []);
+
+  // Obtener amigos - Optimizado para usar caché y reducir consultas
   useEffect(() => {
     const fetchFriends = async () => {
       if (!userData?.friends || userData.friends.length === 0) {
         setFriends([]);
+        setIsLoading(false);
         return;
       }
 
-      const friendData = [];
-
-      for (let uname of userData.friends) {
-        const q = query(collection(db, "users"), where("username", "==", uname));
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          friendData.push(snapshot.docs[0].data());
+      try {
+        // Usamos sessionStorage para cachear los datos de amigos
+        const cachedFriendsData = sessionStorage.getItem('friends_data');
+        const cachedTimestamp = sessionStorage.getItem('friends_timestamp');
+        const now = Date.now();
+        
+        // Usamos caché si existe y tiene menos de 5 minutos
+        if (cachedFriendsData && cachedTimestamp && (now - parseInt(cachedTimestamp) < 300000)) {
+          setFriends(JSON.parse(cachedFriendsData));
+        } else {
+          // Si no hay caché o está desactualizada, hacemos la consulta
+          const friendData = [];
+          const batchSize = 10; // Procesar en lotes para evitar sobrecarga
+          
+          // Dividir amigos en lotes
+          for (let i = 0; i < userData.friends.length; i += batchSize) {
+            const batch = userData.friends.slice(i, i + batchSize);
+            
+            // Consulta optimizada con una sola consulta por lote usando 'in'
+            const q = query(collection(db, "users"), where("username", "in", batch));
+            const snapshot = await getDocs(q);
+            
+            snapshot.forEach(doc => {
+              friendData.push(doc.data());
+            });
+          }
+          
+          setFriends(friendData);
+          
+          // Guardar en caché
+          sessionStorage.setItem('friends_data', JSON.stringify(friendData));
+          sessionStorage.setItem('friends_timestamp', now.toString());
         }
+      } catch (error) {
+        console.error("Error al obtener amigos:", error);
+      } finally {
+        setIsLoading(false);
       }
-
-      setFriends(friendData);
     };
 
     if (userData) {
@@ -51,15 +141,15 @@ export default function Chats() {
     }
   }, [userData]);
 
-  // Listen to online status of friends
+  // Listener optimizado para el estado en línea de amigos
   useEffect(() => {
-    if (!userData?.friends) return;
+    if (!userData?.friends || userData.friends.length === 0) return;
 
-    // Create an object to store unsubscribe functions
+    // Limitar el número de listeners activos a la vez
+    const activeUsernames = userData.friends.slice(0, 20); // Limitar a 20 amigos activos
     const unsubscribers = {};
 
-    // Listen to online status for each friend
-    userData.friends.forEach((friendUsername) => {
+    activeUsernames.forEach((friendUsername) => {
       const unsubscribe = listenToUserStatus(friendUsername, (isOnline) => {
         setOnlineStatuses(prev => ({
           ...prev,
@@ -70,19 +160,20 @@ export default function Chats() {
       unsubscribers[friendUsername] = unsubscribe;
     });
 
-    // Cleanup function
     return () => {
-      Object.values(unsubscribers).forEach(unsub => unsub());
+      Object.values(unsubscribers).forEach(unsub => unsub && unsub());
     };
   }, [userData?.friends]);
 
-  // Obtener grupos
+  // Obtener grupos - Optimizado
   useEffect(() => {
     if (!userData) return;
 
+    // Usamos una consulta más eficiente con límite
     const q = query(
       collection(db, "groups"),
-      where("miembros", "array-contains", userData.username)
+      where("miembros", "array-contains", userData.username),
+      limit(20) // Limitar a 20 grupos para mejorar rendimiento
     );
 
     const unsub = onSnapshot(q, (snap) => {
@@ -94,7 +185,7 @@ export default function Chats() {
     return () => unsub();
   }, [userData]);
   
-  // Obtener solicitudes de amistad pendientes
+  // Obtener solicitudes de amistad pendientes - Optimizado
   useEffect(() => {
     if (!userData) return;
 
@@ -102,7 +193,8 @@ export default function Chats() {
       collection(db, "friendRequests"),
       where("to", "==", userData.username),
       where("status", "==", "pending"),
-      orderBy("timestamp", "desc")
+      orderBy("timestamp", "desc"),
+      limit(10) // Limitar a 10 solicitudes recientes
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
@@ -116,139 +208,125 @@ export default function Chats() {
     return () => unsub();
   }, [userData]);
 
-  // Obtener mensajes no leídos y últimos mensajes en tiempo real
+  // MEJORA CLAVE: Un solo listener para obtener últimos mensajes y conteo no leído
   useEffect(() => {
     if (!userData) return;
     
-    const unsubscribers = [];
-    
-    // Listener para mensajes privados
+    // Un solo listener para todos los mensajes del usuario
     const messagesRef = collection(db, "messages");
     const q = query(
       messagesRef,
-      where("to", "==", userData.username),
-      where("read", "==", false),
-      orderBy("timestamp", "desc")
+      where("participants", "array-contains", userData.username),
+      orderBy("timestamp", "desc"),
+      limit(50)  // Limitamos para optimizar pero aumentamos para capturar más conversaciones
     );
-
-    const unsubMessages = onSnapshot(q, (snapshot) => {
-      const newUnreadCounts = { ...unreadCounts };
-      const newLastMessages = { ...lastMessages };
-
-      // Agrupar mensajes no leídos por remitente
-      snapshot.docs.forEach((doc) => {
-        const msg = doc.data();
-        const from = msg.from;
+    
+    const unsub = onSnapshot(q, (snapshot) => {
+      // Usamos un objeto para agrupar por conversación
+      const lastMessagesByPerson = {};
+      const unreadCountsByPerson = {};
+      
+      // Procesar los mensajes
+      snapshot.docs.forEach(docSnap => {
+        const msg = docSnap.data();
+        const otherPerson = msg.from === userData.username ? msg.to : msg.from;
         
-        // Incrementar contador de no leídos
-        if (!newUnreadCounts[from]) {
-          newUnreadCounts[from] = 0;
-        }
-        newUnreadCounts[from]++;
+        // Skip si es un mensaje de grupo
+        if (!otherPerson) return;
         
-        // Actualizar último mensaje si es más reciente
-        if (!newLastMessages[from] || 
+        // Actualizar último mensaje de esta conversación
+        if (!lastMessagesByPerson[otherPerson] || 
             (msg.timestamp && 
-            (!newLastMessages[from].timestamp || 
-            msg.timestamp.toDate() > newLastMessages[from].timestamp.toDate()))) {
-          newLastMessages[from] = {
+            (!lastMessagesByPerson[otherPerson].timestamp || 
+            msg.timestamp.toDate() > lastMessagesByPerson[otherPerson].timestamp.toDate()))) {
+          
+          lastMessagesByPerson[otherPerson] = {
             text: msg.text || (msg.image ? "📷 Imagen" : ""),
             timestamp: msg.timestamp,
-            unread: true
+            from: msg.from,
+            to: msg.to,
+            unread: msg.to === userData.username && !msg.read
           };
+        }
+        
+        // Contar mensajes no leídos
+        if (msg.to === userData.username && !msg.read) {
+          if (!unreadCountsByPerson[msg.from]) {
+            unreadCountsByPerson[msg.from] = 0;
+          }
+          unreadCountsByPerson[msg.from]++;
         }
       });
       
-      setUnreadCounts(newUnreadCounts);
-      setLastMessages(prevState => ({...prevState, ...newLastMessages}));
-    });
-    
-    unsubscribers.push(unsubMessages);
-
-    // Para cada amigo, obtener el último mensaje (leido o no)
-    friends.forEach(friend => {
-      const lastMsgQuery = query(
-        messagesRef,
-        where("participants", "array-contains", userData.username),
-        orderBy("timestamp", "desc"),
-        limit(10)
-      );
-      
-      const unsubLastMsg = onSnapshot(lastMsgQuery, (snapshot) => {
-        const newLastMessages = { ...lastMessages };
+      // Actualizar estado de última vista de un solo mensaje por conversación
+      setLastMessages(prev => {
+        // Combinar previo con nuevo, manteniendo otras entradas (como grupos)
+        const newState = { ...prev };
         
-        snapshot.docs.forEach(doc => {
-          const msgData = doc.data();
-          
-          // Verificar si el mensaje es entre este amigo y el usuario
-          const isBetween = 
-            (msgData.from === userData.username && msgData.to === friend.username) ||
-            (msgData.from === friend.username && msgData.to === userData.username);
-            
-          if (isBetween) {
-            const username = msgData.from === userData.username ? msgData.to : msgData.from;
-            
-            // Actualizar ultimo mensaje si es más reciente
-            if (!newLastMessages[username] || 
-                (msgData.timestamp && 
-                (!newLastMessages[username].timestamp || 
-                msgData.timestamp.toDate() > newLastMessages[username].timestamp.toDate()))) {
-              
-              newLastMessages[username] = {
-                text: msgData.text || (msgData.image ? "📷 Imagen" : ""),
-                timestamp: msgData.timestamp,
-                unread: msgData.to === userData.username && !msgData.read
-              };
-            }
-          }
+        // Actualizar o añadir nuevas entradas
+        Object.entries(lastMessagesByPerson).forEach(([person, msgData]) => {
+          newState[person] = msgData;
         });
         
-        setLastMessages(prevState => ({...prevState, ...newLastMessages}));
+        return newState;
       });
       
-      unsubscribers.push(unsubLastMsg);
+      // Actualizar contador de no leídos
+      setUnreadCounts(unreadCountsByPerson);
     });
+    
+    return () => unsub();
+  }, [userData]);
 
-    // Para grupos, obtener ultimo mensaje y actualizaciones en tiempo real
-    groups.forEach(group => {
+  // Listener optimizado para mensajes de grupo
+  useEffect(() => {
+    if (!userData || groups.length === 0) return;
+    
+    const unsubscribers = [];
+    
+    // Limitar a 10 grupos activos para reducir consultas pero aumentar para mejor experiencia
+    const activeGroups = groups.slice(0, 10);
+    
+    activeGroups.forEach(group => {
       const msgsRef = collection(db, "groupMessages", group.id, "messages");
       const groupLastMsgQuery = query(msgsRef, orderBy("timestamp", "desc"), limit(1));
       
       const unsubGroupLastMsg = onSnapshot(groupLastMsgQuery, (snapshot) => {
         if (!snapshot.empty) {
           const msgData = snapshot.docs[0].data();
-          const newLastMessages = { ...lastMessages };
           
-          const groupKey = `group_${group.id}`;
-          newLastMessages[groupKey] = {
-            text: msgData.text || (msgData.image ? "📷 Imagen" : ""),
-            timestamp: msgData.timestamp,
-            from: msgData.from,
-            // Determinar si es no leído 
-            unread: msgData.from !== userData.username
-          };
-          
-          setLastMessages(prevState => ({...prevState, ...newLastMessages}));
+          setLastMessages(prevState => ({
+            ...prevState,
+            [`group_${group.id}`]: {
+              text: msgData.text || (msgData.image ? "📷 Imagen" : ""),
+              timestamp: msgData.timestamp,
+              from: msgData.from,
+              unread: msgData.from !== userData.username
+            }
+          }));
         }
       });
       
       unsubscribers.push(unsubGroupLastMsg);
     });
-
-    // Cleanup de todos los listeners al desmontar
+    
     return () => {
       unsubscribers.forEach(unsub => unsub());
     };
-  }, [userData, friends, groups]); 
+  }, [userData, groups]);
 
-  // Filtrar chats por búsqueda
-  const filteredFriends = friends.filter(friend => 
-    friend.username.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filtrar chats por búsqueda - Memoizado para evitar cálculos innecesarios
+  const filteredFriends = useMemo(() => {
+    return friends.filter(friend => 
+      friend.username.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [friends, searchTerm]);
   
-  const filteredGroups = groups.filter(group => 
-    group.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredGroups = useMemo(() => {
+    return groups.filter(group => 
+      group.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [groups, searchTerm]);
 
   // Formatear tiempo relativo
   const formatRelativeTime = (timestamp) => {
@@ -280,17 +358,16 @@ export default function Chats() {
     return onlineStatuses[username] || false;
   };
 
-  // Manejar aceptación de solicitud de amistad
+  // Manejar aceptación de solicitud de amistad - Optimizado
   const handleAcceptFriendRequest = async (req) => {
     try {
       const requestRef = doc(db, "friendRequests", req.id);
-  
       await updateDoc(requestRef, { status: "accepted" });
 
-      const usersRef = collection(db, "users");
-
-      const q1 = query(usersRef, where("username", "==", userData.username));
-      const q2 = query(usersRef, where("username", "==", req.from));
+      // Obtener referencias directas en lugar de consultas
+      const userRef = collection(db, "users");
+      const q1 = query(userRef, where("username", "==", userData.username));
+      const q2 = query(userRef, where("username", "==", req.from));
 
       const [meSnap, senderSnap] = await Promise.all([getDocs(q1), getDocs(q2)]);
 
@@ -301,13 +378,19 @@ export default function Chats() {
         const meFriends = meDoc.data().friends || [];
         const senderFriends = senderDoc.data().friends || [];
 
-        await updateDoc(doc(db, "users", meDoc.id), {
-          friends: [...new Set([...meFriends, req.from])]
-        });
-
-        await updateDoc(doc(db, "users", senderDoc.id), {
-          friends: [...new Set([...senderFriends, userData.username])]
-        });
+        // Actualizaciones en paralelo para mayor eficiencia
+        await Promise.all([
+          updateDoc(doc(db, "users", meDoc.id), {
+            friends: [...new Set([...meFriends, req.from])]
+          }),
+          updateDoc(doc(db, "users", senderDoc.id), {
+            friends: [...new Set([...senderFriends, userData.username])]
+          })
+        ]);
+        
+        // Actualizar el caché de amigos
+        sessionStorage.removeItem('friends_data');
+        sessionStorage.removeItem('friends_timestamp');
       }
     } catch (error) {
       console.error("Error al aceptar solicitud:", error);
@@ -323,7 +406,28 @@ export default function Chats() {
     }
   };
 
-  // ELIMINADO: useEffect para actualizar estado online al cambiar de ruta
+  // Ordenar la lista de amigos según la actividad reciente
+  const sortedFriends = useMemo(() => {
+    return [...filteredFriends].sort((a, b) => {
+      const lastMsgA = lastMessages[a.username];
+      const lastMsgB = lastMessages[b.username];
+      
+      // Si hay mensajes no leídos, priorizarlos
+      const unreadA = unreadCounts[a.username] || 0;
+      const unreadB = unreadCounts[b.username] || 0;
+      
+      if (unreadA > 0 && unreadB === 0) return -1;
+      if (unreadA === 0 && unreadB > 0) return 1;
+      
+      // Si ambos tienen mensajes no leídos o ninguno, comparar por tiempo
+      if (!lastMsgA?.timestamp && !lastMsgB?.timestamp) return 0;
+      if (!lastMsgA?.timestamp) return 1;
+      if (!lastMsgB?.timestamp) return -1;
+      
+      // Ordenar por timestamp más reciente
+      return lastMsgB.timestamp.toDate() - lastMsgA.timestamp.toDate();
+    });
+  }, [filteredFriends, lastMessages, unreadCounts]);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-900 text-gray-100">
@@ -365,112 +469,148 @@ export default function Chats() {
 
       {/* Contenido: Lista de chats */}
       <div className="flex-1 overflow-y-auto">
-        {selectedTab === "friends" && (
-          <div className="p-2 space-y-1">
-            {filteredFriends.length > 0 ? (
-              filteredFriends.map((friend) => (
-                <div
-                  key={friend.username}
-                  onClick={() => navigate(`/chat/${friend.username}`)}
-                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 cursor-pointer transition-colors"
-                >
-                  <div className="relative">
-                    <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-700 flex-shrink-0">
-                      {friend.photoURL ? (
-                        <img src={friend.photoURL} alt="avatar" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-sm text-gray-300">😶</div>
-                      )}
-                    </div>
-                    {isOnline(friend.username) && (
-                      <div className="absolute bottom-0 right-0 bg-green-500 w-3 h-3 rounded-full border-2 border-gray-900"></div>
-                    )}
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center">
-                        <span className="font-medium truncate">{friend.username}</span>
-                        <Staff username={friend.username} />
-                      </div>
-                      <span className="text-xs text-gray-400">
-                        {lastMessages[friend.username]?.timestamp ? 
-                          formatRelativeTime(lastMessages[friend.username].timestamp) : ''}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center mt-1">
-                      <p className={`text-sm truncate max-w-[70%] ${
-                        lastMessages[friend.username]?.unread ? 'text-gray-100 font-medium' : 'text-gray-400'
-                      }`}>
-                        {lastMessages[friend.username]?.text || 'No hay mensajes aún'}
-                      </p>
-                      {unreadCounts[friend.username] > 0 && (
-                        <span className="bg-indigo-600 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
-                          {unreadCounts[friend.username]}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-10 text-gray-500">
-                <p className="mb-4">No hay amigos para mostrar</p>
-                <AddFriend />
-              </div>
-            )}
+        {isLoading ? (
+          <div className="flex justify-center items-center h-full">
+            <div className="animate-pulse text-gray-400">Cargando...</div>
           </div>
-        )}
- 
-        {selectedTab === "groups" && (
-          <div className="p-2 space-y-1">
-            {filteredGroups.length > 0 ? (
-              filteredGroups.map((group) => (
-                <div
-                  key={group.id}
-                  onClick={() => navigate(`/chat/group/${group.id}`)}
-                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 cursor-pointer transition-colors"
-                >
-                  <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-700 flex-shrink-0 flex items-center justify-center">
-                    <span className="text-xl">👥</span>
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium truncate">{group.name}</span>
-                      <span className="text-xs text-gray-400">
-                        {lastMessages[`group_${group.id}`]?.timestamp ? 
-                          formatRelativeTime(lastMessages[`group_${group.id}`].timestamp) : ''}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center mt-1">
-                      <p className={`text-sm truncate max-w-[70%] ${
-                        lastMessages[`group_${group.id}`]?.unread ? 'text-gray-100 font-medium' : 'text-gray-400'
-                      }`}>
-                        {lastMessages[`group_${group.id}`]?.from ? (
-                          <span>
-                            <span className="font-medium">{lastMessages[`group_${group.id}`].from}:</span> {lastMessages[`group_${group.id}`].text}
-                          </span>
-                        ) : (
-                          'No hay mensajes aún'
+        ) : (
+          <>
+            {selectedTab === "friends" && (
+              <div className="p-2 space-y-1">
+                {sortedFriends.length > 0 ? (
+                  sortedFriends.map((friend) => (
+                    <div
+                      id={`friend-${friend.username}`}
+                      key={friend.username}
+                      onClick={() => handleNavigation(`/chat/${friend.username}`, `friend-${friend.username}`)}
+                      className={`flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 cursor-pointer transition-colors active:bg-indigo-700
+                        ${unreadCounts[friend.username] ? 'bg-gray-800 bg-opacity-70' : ''}
+                      `}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          handleNavigation(`/chat/${friend.username}`, `friend-${friend.username}`);
+                        }
+                      }}
+                    >
+                      <div className="relative">
+                        <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-700 flex-shrink-0">
+                          {friend.photoURL ? (
+                            <img src={friend.photoURL} alt="avatar" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-sm text-gray-300">😶</div>
+                          )}
+                        </div>
+                        {isOnline(friend.username) && (
+                          <div className="absolute bottom-0 right-0 bg-green-500 w-3 h-3 rounded-full border-2 border-gray-900"></div>
                         )}
-                      </p>
-                      {lastMessages[`group_${group.id}`]?.unread && (
-                        <span className="bg-indigo-600 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
-                          nuevo
-                        </span>
-                      )}
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center">
+                            <span className="font-medium truncate">{friend.username}</span>
+                            <Staff username={friend.username} />
+                          </div>
+                          <span className="text-xs text-gray-400">
+                            {lastMessages[friend.username]?.timestamp ? 
+                              formatRelativeTime(lastMessages[friend.username].timestamp) : ''}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center mt-1">
+                          <p className={`text-sm truncate max-w-[70%] ${
+                            lastMessages[friend.username]?.unread ? 'text-gray-100 font-medium' : 'text-gray-400'
+                          }`}>
+                            {lastMessages[friend.username]?.from === userData.username && (
+                              <span className="text-gray-400 mr-1">Tú:</span>
+                            )}
+                            {lastMessages[friend.username]?.text || 'No hay mensajes aún'}
+                          </p>
+                          {unreadCounts[friend.username] > 0 && (
+                            <span className="bg-indigo-600 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+                              {unreadCounts[friend.username]}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="text-center py-10 text-gray-500">
+                    <p className="mb-4">No hay amigos para mostrar</p>
+                    <AddFriend />
                   </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-10 text-gray-500">
-                <p className="mb-4">No hay grupos para mostrar</p>
-                <CreateGroupButton />
+                )}
               </div>
             )}
-          </div>
+     
+            {selectedTab === "groups" && (
+              <div className="p-2 space-y-1">
+                {filteredGroups.length > 0 ? (
+                  filteredGroups.map((group) => (
+                    <div
+                      id={`group-${group.id}`}
+                      key={group.id}
+                      onClick={() => handleNavigation(`/chat/group/${group.id}`, `group-${group.id}`)}
+                      className={`flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 cursor-pointer transition-colors active:bg-indigo-700
+                        ${lastMessages[`group_${group.id}`]?.unread ? 'bg-gray-800 bg-opacity-70' : ''}
+                      `}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          handleNavigation(`/chat/group/${group.id}`, `group-${group.id}`);
+                        }
+                      }}
+                    >
+                      <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-700 flex-shrink-0 flex items-center justify-center">
+                        <span className="text-xl">👥</span>
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium truncate">{group.name}</span>
+                          <span className="text-xs text-gray-400">
+                            {lastMessages[`group_${group.id}`]?.timestamp ? 
+                              formatRelativeTime(lastMessages[`group_${group.id}`].timestamp) : ''}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center mt-1">
+                          <p className={`text-sm truncate max-w-[70%] ${
+                            lastMessages[`group_${group.id}`]?.unread ? 'text-gray-100 font-medium' : 'text-gray-400'
+                          }`}>
+                            {lastMessages[`group_${group.id}`]?.from ? (
+                              <span>
+                                {lastMessages[`group_${group.id}`].from === userData.username ? (
+                                  <span className="text-gray-400 mr-1">Tú:</span>
+                                ) : (
+                                  <span className="font-medium mr-1">{lastMessages[`group_${group.id}`].from}:</span>
+                                )}
+                                {lastMessages[`group_${group.id}`].text}
+                              </span>
+                            ) : (
+                              'No hay mensajes aún'
+                            )}
+                          </p>
+                          {lastMessages[`group_${group.id}`]?.unread && (
+                            <span className="bg-indigo-600 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+                              nuevo
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-10 text-gray-500">
+                    <p className="mb-4">No hay grupos para mostrar</p>
+                    <CreateGroupButton />
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
 
