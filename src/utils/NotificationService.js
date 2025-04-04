@@ -7,7 +7,7 @@ const NotificationService = {
     return 'Notification' in window;
   },
   
-  // Verificar si las notificaciones están habilitadas
+  // Verificar si las notificaciones están habilitadas (método original)
   areEnabled() {
     if (!this.isSupported()) {
       return false;
@@ -20,6 +20,11 @@ const NotificationService = {
     const userPreference = localStorage.getItem('notificationsEnabled') === 'true';
     
     return permissionGranted && userPreference;
+  },
+  
+  // Alias para compatibilidad con código existente
+  isEnabled() {
+    return this.areEnabled();
   },
   
   // Inicializar el servicio de notificaciones
@@ -82,7 +87,7 @@ const NotificationService = {
   
   // Enviar notificación
   async showNotification(title, options = {}) {
-    if (!this.areEnabled()) {
+    if (!this.isEnabled()) {
       console.warn('Las notificaciones no están habilitadas');
       return false;
     }
@@ -133,5 +138,6 @@ export default NotificationService;
 
 // También exportamos funciones individuales para compatibilidad
 export const areNotificationsEnabled = () => NotificationService.areEnabled();
+export const isNotificationsEnabled = () => NotificationService.isEnabled();
 export const registerServiceWorker = () => NotificationService.registerServiceWorker();
 export const sendNotification = (title, options) => NotificationService.showNotification(title, options);

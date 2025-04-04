@@ -3,13 +3,13 @@ const CACHE_NAME = 'mi-app-v1';
 
 // Instalación del Service Worker
 self.addEventListener('install', event => {
-  console.log('Service Worker instalado');
+  console.log('[Service Worker] Instalado');
   self.skipWaiting(); // Fuerza la activación inmediata
 });
 
 // Activación del Service Worker
 self.addEventListener('activate', event => {
-  console.log('Service Worker activado');
+  console.log('[Service Worker] Activado');
   
   // Reclama el control inmediatamente
   event.waitUntil(clients.claim());
@@ -17,7 +17,7 @@ self.addEventListener('activate', event => {
 
 // Gestión de notificaciones push (cuando implementes Push API)
 self.addEventListener('push', event => {
-  console.log('Push recibido:', event);
+  console.log('[Service Worker] Push recibido:', event);
   
   if (event.data) {
     const data = event.data.json();
@@ -29,6 +29,7 @@ self.addEventListener('push', event => {
       badge: data.badge || '/badge.png',
       data: {
         url: data.url || '/',
+        messageId: data.messageId
       }
     };
     
@@ -40,53 +41,65 @@ self.addEventListener('push', event => {
 
 // Gestión de clic en notificaciones
 self.addEventListener('notificationclick', event => {
-  console.log('Notificación clicada:', event);
+  console.log('[Service Worker] Notificación clicada:', event);
   
   // Cerrar la notificación
   event.notification.close();
   
+  // Obtener la URL de la notificación
+  const urlToOpen = event.notification.data && event.notification.data.url 
+    ? event.notification.data.url 
+    : '/';
+  
   // Abrir o enfocar una ventana existente
   event.waitUntil(
-    clients.matchAll({ type: 'window' }).then(clientList => {
-      const url = event.notification.data && event.notification.data.url ? 
-        event.notification.data.url : '/';
-      
-      // Si ya hay una ventana abierta, enfocarla
+    clients.matchAll({ 
+      type: 'window',
+      includeUncontrolled: true 
+    })
+    .then(clientList => {
+      // Verificar si ya hay una ventana abierta con esa URL
       for (const client of clientList) {
-        if (client.url === url && 'focus' in client) {
+        // Si la URL coincide al final del pathname
+        if (client.url.endsWith(urlToOpen) && 'focus' in client) {
+          // Enfocar la ventana existente
           return client.focus();
         }
       }
       
-      // De lo contrario, abrir una nueva ventana
+      // Si no hay ventana, abrir una nueva
       if (clients.openWindow) {
-        return clients.openWindow(url);
+        return clients.openWindow(urlToOpen);
       }
     })
   );
 });
 
-// Función auxiliar para enviar notificaciones desde cliente
+// Función para enviar notificaciones desde cliente
 self.notifyUser = async (data) => {
   try {
+    console.log('[Service Worker] Mostrando notificación:', data);
+    
     await self.registration.showNotification(data.title || 'Notificación', {
       body: data.body || 'Tienes un nuevo mensaje',
       icon: data.icon || '/icon.png',
       badge: data.badge || '/badge.png',
       data: {
-        url: data.url || '/'
-      }
+        url: data.url || '/',
+        messageId: data.messageId
+      },
+      requireInteraction: data.requireInteraction || false
     });
     return true;
   } catch (error) {
-    console.error('Error al mostrar notificación:', error);
+    console.error('[Service Worker] Error al mostrar notificación:', error);
     return false;
   }
 };
 
 // Escuchar mensajes del cliente
 self.addEventListener('message', event => {
-  console.log('Mensaje recibido en SW:', event.data);
+  console.log('[Service Worker] Mensaje recibido:', event.data);
   
   if (event.data && event.data.type === 'SEND_NOTIFICATION') {
     self.notifyUser(event.data.payload)

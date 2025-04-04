@@ -73,21 +73,48 @@ export default function NotificationListener() {
           from: msg.from, 
         });
 
-        // Si el usuario ha habilitado notificaciones y la página no está enfocada o estamos en otra sección, mostrar notificación del sistema
-        if (NotificationService.isEnabled() && (!isPageVisible || currentPath !== senderPath)) {
-          const messageText = msg.text || (msg.image ? "📷 Imagen" : "");
-          NotificationService.showNotification(
-            `Mensaje de ${msg.from}`,
-            {
-              body: messageText,
-              icon: sender?.photoURL || '/default-avatar.png', // Reemplaza con tu icono por defecto
-              onClick: function() {
-                window.focus();
-                navigate(`/chat/${msg.from}`);
-                this.close();
+        // Preparar datos para la notificación
+        const messageText = msg.text || (msg.image ? "📷 Imagen" : "");
+        const notificationTitle = `Mensaje de ${msg.from}`;
+        const notificationOptions = {
+          body: messageText,
+          icon: sender?.photoURL || '/default-avatar.png',
+          data: {
+            url: `/chat/${msg.from}`,
+            messageId: msgId
+          },
+          requireInteraction: false
+        };
+
+        // Si el usuario ha habilitado notificaciones y la página no está enfocada o estamos en otra sección
+        try {
+          if ((!isPageVisible || currentPath !== senderPath)) {
+            // Verificar explícitamente si las notificaciones están habilitadas
+            if (Notification.permission === 'granted' && 
+                localStorage.getItem('notificationsEnabled') === 'true') {
+              
+              console.log('Enviando notificación de nuevo mensaje:', notificationTitle);
+              
+              // Intentar mostrar notificación a través del Service Worker primero
+              if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({
+                  type: 'SEND_NOTIFICATION',
+                  payload: {
+                    title: notificationTitle,
+                    ...notificationOptions
+                  }
+                });
+              } else {
+                // Fallback al método del servicio
+                await NotificationService.showNotification(
+                  notificationTitle,
+                  notificationOptions
+                );
               }
             }
-          );
+          }
+        } catch (error) {
+          console.error("Error al mostrar notificación:", error);
         }
       }
     });
