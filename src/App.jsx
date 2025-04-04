@@ -159,27 +159,56 @@ function OnlineStatusTracker() {
 }
 
 export default function App() {
-  // Inicializar el sistema de notificaciones
-  useEffect(() => {
-    const initNotifications = async () => {
-      if (NotificationService.isSupported()) {
-        console.log('Comprobando sistema de notificaciones...');
-        
-        // Verificar si ya hemos guardado la preferencia
-        const notifKey = "notificacionesAceptadas";
-        
-        if (localStorage.getItem(notifKey) === 'true') {
-          // El usuario ya aceptó las notificaciones, inicializar el sistema
+// Inicializar el sistema de notificaciones y registrar el Service Worker
+useEffect(() => {
+  const initNotifications = async () => {
+    if (NotificationService.isSupported()) {
+      console.log('Comprobando sistema de notificaciones...');
+      
+      // Registrar el Service Worker independientemente del permiso de notificaciones
+      try {
+        // Registrar el Service Worker lo antes posible
+        if ('serviceWorker' in navigator) {
           try {
-            await NotificationService.initialize();
-            console.log('Sistema de notificaciones inicializado correctamente');
-            
-            // Si estamos en producción (no en localhost) y no se ha mostrado mensaje de bienvenida
-            if (!window.location.hostname.includes('localhost') && 
-                !window.location.hostname.includes('127.0.0.1') &&
-                !localStorage.getItem('welcome_notification_shown')) {
-              // Esperar un poco antes de mostrar la notificación
-              setTimeout(() => {
+            const registration = await navigator.serviceWorker.register('/sw.js', {
+              scope: '/'
+            });
+            console.log('Service Worker registrado con éxito:', registration);
+          } catch (error) {
+            console.error('Error al registrar el Service Worker:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Error al verificar el Service Worker:', error);
+      }
+      
+      // Verificar si ya hemos guardado la preferencia
+      const notifKey = "notificacionesAceptadas";
+      
+      if (localStorage.getItem(notifKey) === 'true') {
+        // El usuario ya aceptó las notificaciones, inicializar el sistema
+        try {
+          await NotificationService.initialize();
+          console.log('Sistema de notificaciones inicializado correctamente');
+          
+          // Si estamos en producción (no en localhost) y no se ha mostrado mensaje de bienvenida
+          if (!window.location.hostname.includes('localhost') && 
+              !window.location.hostname.includes('127.0.0.1') &&
+              !localStorage.getItem('welcome_notification_shown')) {
+            // Esperar un poco antes de mostrar la notificación
+            setTimeout(() => {
+              // Intentar usar el Service Worker para mostrar la notificación
+              if (navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({
+                  type: 'SEND_NOTIFICATION',
+                  payload: {
+                    title: '¡Notificaciones activas!',
+                    body: 'Ahora recibirás notificaciones incluso cuando esta aplicación esté cerrada.',
+                    requireInteraction: false
+                  }
+                });
+              } else {
+                // Fallback al método normal
                 NotificationService.showNotification(
                   '¡Notificaciones activas!',
                   {
@@ -187,18 +216,19 @@ export default function App() {
                     requireInteraction: false
                   }
                 );
-                localStorage.setItem('welcome_notification_shown', 'true');
-              }, 5000);
-            }
-          } catch (error) {
-            console.error('Error al inicializar el sistema de notificaciones:', error);
+              }
+              localStorage.setItem('welcome_notification_shown', 'true');
+            }, 5000);
           }
+        } catch (error) {
+          console.error('Error al inicializar el sistema de notificaciones:', error);
         }
       }
-    };
+    }
+  };
 
-    initNotifications();
-  }, []);
+  initNotifications();
+}, []);
 
   return (
     <Router>

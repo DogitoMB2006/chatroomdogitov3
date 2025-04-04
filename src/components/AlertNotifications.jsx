@@ -7,6 +7,7 @@ export default function AlertNotifications() {
   const [showInstructions, setShowInstructions] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageSrc, setImageSrc] = useState('');
+  const [notificationStatus, setNotificationStatus] = useState('default');
 
   // Posibles rutas para la imagen
   const imageSources = [
@@ -16,12 +17,16 @@ export default function AlertNotifications() {
     './assets/testing.jpg'
   ];
 
+  // Verificar el estado inicial de las notificaciones
   useEffect(() => {
     // Verificar si las notificaciones están soportadas
     if (!('Notification' in window)) {
       console.warn('Las notificaciones no están soportadas en este navegador');
       return;
     }
+
+    // Establecer el estado actual
+    setNotificationStatus(Notification.permission);
 
     // No mostrar si ya se ha tomado una decisión
     const notifKey = "notificacionesAceptadas";
@@ -36,11 +41,43 @@ export default function AlertNotifications() {
       return;
     }
 
-    // Mostrar la alerta
+    // Verificar si necesitamos registrar el service worker
+    checkAndRegisterServiceWorker();
+
+    // Mostrar la alerta con un retraso
     setTimeout(() => {
       setShow(true);
     }, 1500);
   }, []);
+
+  // Función para registrar el Service Worker necesario para notificaciones en producción
+  const checkAndRegisterServiceWorker = async () => {
+    if ('serviceWorker' in navigator) {
+      try {
+        // Registrar el service worker
+        const registration = await navigator.serviceWorker.register('/sw.js', {
+          scope: '/'
+        });
+        
+        console.log('Service Worker registrado con éxito:', registration);
+        
+        // Esperar a que el service worker esté activo
+        if (registration.installing) {
+          console.log('Service Worker instalando');
+          
+          registration.installing.addEventListener('statechange', e => {
+            if (e.target.state === 'activated') {
+              console.log('Service Worker ahora está activo');
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error al registrar el Service Worker:', error);
+      }
+    } else {
+      console.warn('Service Worker no soportado en este navegador');
+    }
+  };
 
   // Verificar si podemos cargar la imagen cuando se muestran las instrucciones
   useEffect(() => {
@@ -84,49 +121,86 @@ export default function AlertNotifications() {
     }, 500);
   };
 
-  const handleEnable = () => {
+  // Función para verificar si el permiso fue otorgado
+  const checkNotificationPermission = async () => {
+    // Es posible que el estado haya cambiado, así que verificamos de nuevo
+    const currentPermission = Notification.permission;
+    setNotificationStatus(currentPermission);
+    
+    if (currentPermission === 'granted') {
+      localStorage.setItem("notificacionesAceptadas", 'true');
+      localStorage.setItem('notificationsEnabled', 'true');
+      
+      // Mostrar notificación de prueba después de un pequeño retraso
+      setTimeout(() => {
+        try {
+          // Asegurarse de que el service worker esté activo antes de enviar notificación
+          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            // Enviar a través del service worker
+            navigator.serviceWorker.ready.then(registration => {
+              registration.showNotification('¡Notificaciones activadas!', {
+                body: 'Recibirás notificaciones de mensajes nuevos.',
+                icon: '/icon.png'
+              });
+            });
+          } else {
+            // Fallback a notificación directa (menos confiable en producción)
+            new Notification('¡Notificaciones activadas!', {
+              body: 'Recibirás notificaciones de mensajes nuevos.',
+              icon: '/icon.png'
+            });
+          }
+        } catch (e) {
+          console.error("Error al mostrar notificación de prueba", e);
+        }
+      }, 1000);
+      
+      return true;
+    }
+    
+    return false;
+  };
+
+  const handleEnable = async () => {
     // Si mostramos las instrucciones, ocultarlas primero
     if (showInstructions) {
       setShowInstructions(false);
       return;
     }
 
+    // Asegurarse de que el service worker esté registrado
+    await checkAndRegisterServiceWorker();
+
     // Intentar solicitar permiso
     try {
-      // En algunos navegadores en entornos de desarrollo (como localhost),
-      // esto puede ser bloqueado automáticamente
-      Notification.requestPermission().then((permission) => {
-        if (permission === 'granted') {
-          // El usuario concedió el permiso
-          localStorage.setItem("notificacionesAceptadas", 'true');
-          localStorage.setItem('notificationsEnabled', 'true');
-          
-          // Mostrar notificación de prueba
-          try {
-            new Notification('¡Notificaciones activadas!', {
-              body: 'Recibirás notificaciones de mensajes nuevos.',
-              icon: '/icon.png'
-            });
-          } catch (e) {
-            console.error("Error al mostrar notificación de prueba", e);
-          }
-          
-          // Cerrar modal
-          safelyCloseModal();
-        } else if (permission === 'denied') {
-          // El usuario negó el permiso
-          localStorage.setItem("notificacionesAceptadas", 'rechazado');
-          localStorage.setItem('notificationsEnabled', 'false');
-          safelyCloseModal();
-        } else {
-          // El navegador bloqueó la solicitud o la dejó en estado default
-          // Mostrar instrucciones
-          setShowInstructions(true);
+      console.log("Solicitando permiso de notificaciones...");
+      
+      // Forzar a que se muestre el prompt del navegador
+      const permissionResult = await Notification.requestPermission();
+      console.log("Resultado del permiso:", permissionResult);
+      
+      // Actualizar el estado
+      setNotificationStatus(permissionResult);
+      
+      if (permissionResult === 'granted') {
+        // El usuario concedió el permiso
+        const success = await checkNotificationPermission();
+        if (success) {
+          // Cerrar modal después de un retraso para asegurar que se muestre la notificación
+          setTimeout(() => {
+            safelyCloseModal();
+          }, 1500);
         }
-      }).catch(error => {
-        console.error("Error al solicitar permiso:", error);
+      } else if (permissionResult === 'denied') {
+        // El usuario negó el permiso
+        localStorage.setItem("notificacionesAceptadas", 'rechazado');
+        localStorage.setItem('notificationsEnabled', 'false');
+        safelyCloseModal();
+      } else {
+        // El navegador bloqueó la solicitud o la dejó en estado default
+        // Mostrar instrucciones
         setShowInstructions(true);
-      });
+      }
     } catch (error) {
       console.error("Error al solicitar permiso:", error);
       setShowInstructions(true);
@@ -194,6 +268,11 @@ export default function AlertNotifications() {
                 </div>
                 
                 <p className="mt-4 text-gray-400 text-sm">
+                  Estado actual: {notificationStatus === 'granted' ? 'Permitido' : 
+                                 notificationStatus === 'denied' ? 'Bloqueado' : 'No decidido'}
+                </p>
+                
+                <p className="mt-2 text-gray-400 text-sm">
                   Puedes cambiar esta configuración más tarde en tu perfil.
                 </p>
               </>
@@ -237,7 +316,7 @@ export default function AlertNotifications() {
                 <ol className="text-left text-gray-300 mb-6 space-y-2">
                   <li className="flex items-start gap-2">
                     <span className="bg-gray-700 rounded-full w-5 h-5 flex items-center justify-center text-xs mt-0.5">1</span>
-                    <span>Haz clic en el icono de bloqueo o información en la barra de direcciones</span>
+                    <span>Haz clic en el icono de candado o información en la barra de direcciones</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="bg-gray-700 rounded-full w-5 h-5 flex items-center justify-center text-xs mt-0.5">2</span>
@@ -246,6 +325,10 @@ export default function AlertNotifications() {
                   <li className="flex items-start gap-2">
                     <span className="bg-gray-700 rounded-full w-5 h-5 flex items-center justify-center text-xs mt-0.5">3</span>
                     <span>Cambia la configuración a "Permitir" para este sitio</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="bg-gray-700 rounded-full w-5 h-5 flex items-center justify-center text-xs mt-0.5">4</span>
+                    <span>Recarga la página y vuelve a intentar activar las notificaciones</span>
                   </li>
                 </ol>
                 
