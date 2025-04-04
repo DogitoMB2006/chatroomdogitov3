@@ -1,125 +1,121 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { db } from "../firebase/config";
 import {
   collection,
   query,
   where,
-  orderBy,
   onSnapshot,
-  getDocs,
-  limitToLast
+  orderBy
 } from "firebase/firestore";
 import { AuthContext } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import NotificationService from "../utils/NotificationService";
 
 export default function GroupNotificationListener() {
   const { userData } = useContext(AuthContext);
   const { showToast } = useToast();
-  const lastTimestampRef = useRef(Date.now());
   const location = useLocation();
   const navigate = useNavigate();
-  const [processedMsgIds] = useState(new Set());
 
   useEffect(() => {
     if (!userData) return;
 
-    console.log("GroupNotificationListener iniciado para:", userData.username);
+    const notifKey = "group_last_notif";
+    const lastSeen = JSON.parse(localStorage.getItem(notifKey) || "{}");
 
-    // Obtener los grupos del usuario
-    const fetchGroups = async () => {
-      try {
-        const q = query(
-          collection(db, "groups"),
-          where("miembros", "array-contains", userData.username)
-        );
+    const unsubMessageListeners = new Map(); 
 
-        const snap = await getDocs(q);
-        const groups = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        console.log(`El usuario es miembro de ${groups.length} grupos`);
+    const q = query(
+      collection(db, "groups"),
+      where("miembros", "array-contains", userData.username)
+    );
 
-        // Suscribirse a mensajes nuevos en cada grupo
-        const unsubs = groups.map(group => {
-          console.log(`Configurando listener para el grupo: ${group.name} (${group.id})`);
+    const unsubGroups = onSnapshot(q, (groupSnap) => {
+      const currentGroupIds = new Set();
+
+      groupSnap.forEach((groupDoc) => {
+        const groupId = groupDoc.id;
+        currentGroupIds.add(groupId);
+
+        if (unsubMessageListeners.has(groupId)) return; 
+
+        const group = groupDoc.data();
+        const msgsRef = collection(db, "groupMessages", groupId, "messages");
+        const msgQuery = query(msgsRef, orderBy("timestamp", "desc"));
+
+        const unsub = onSnapshot(msgQuery, (msgSnap) => {
+          const last = msgSnap.docs[0];
+          if (!last) return;
+
+          const data = last.data();
+          const msgId = last.id;
+
+          // Verificar si ya estamos en el chat de este grupo
+          const isPageVisible = document.visibilityState === 'visible';
+          const currentPath = location.pathname;
+          const groupPath = `/chat/group/${groupId}`;
           
-          const q = query(
-            collection(db, "groupMessages", group.id, "messages"),
-            where("from", "!=", userData.username),
-            orderBy("timestamp", "desc"),
-            limitToLast(10)
-          );
+          // Si estamos en el chat de este grupo y la página está visible, actualizar el último mensaje visto pero no mostrar notificación
+          if (currentPath === groupPath && isPageVisible) {
+            lastSeen[groupId] = msgId;
+            localStorage.setItem(notifKey, JSON.stringify(lastSeen));
+            return;
+          }
 
-          return onSnapshot(q, async (snapshot) => {
-            const latest = snapshot.docChanges()
-              .filter(change => change.type === "added")
-              .map(change => ({ id: change.doc.id, ...change.doc.data(), groupId: group.id }));
+          const lastNotif = lastSeen[groupId];
+          if (
+            data.from !== userData.username &&
+            (!lastNotif || lastNotif !== msgId)
+          ) {
+            // Siempre mostrar el toast interno de la app
+            showToast({
+              username: `${data.from} • ${group.name}`,
+              text: data.text || "📷 Imagen",
+              photoURL: data.photoURL || null,
+              type: "group", // Indicar que es un chat de grupo
+              chatId: groupId, // ID del grupo para la navegación
+              from: data.from // Usuario que envio el mensaje
+            });
 
-            for (const msg of latest) {
-              // Verificar si ya se procesó
-              if (processedMsgIds.has(msg.id)) continue;
-              processedMsgIds.add(msg.id);
-              
-              // Verificar si el mensaje es reciente
-              if (!msg.timestamp) continue;
-              const msgTime = msg.timestamp.toMillis ? msg.timestamp.toMillis() : msg.timestamp;
-              if (msgTime < lastTimestampRef.current) continue;
-
-              // Verificar si estamos en la página del grupo
-              const currentPath = location.pathname;
-              const groupPath = `/chat/group/${msg.groupId}`;
-              const isInGroupChat = currentPath === groupPath;
-              
-              // Si estamos en la página del grupo, no mostrar notificación
-              if (isInGroupChat) continue;
-
-              // Obtener información del remitente
-              try {
-                const q = query(
-                  collection(db, "users"),
-                  where("username", "==", msg.from)
-                );
-                const snap = await getDocs(q);
-                const sender = !snap.empty ? snap.docs[0].data() : null;
-
-                // Mostrar toast dentro de la app
-                showToast({
-                  username: msg.from,
-                  text: msg.text || (msg.image ? "📷 Imagen" : ""),
-                  photoURL: sender?.photoURL,
-                  type: "group",
-                  chatId: msg.groupId,
-                  groupName: group.name
-                });
-
-                // Notificación del navegador (básica)
-                if (Notification.permission === 'granted') {
-                  const messageText = msg.text || (msg.image ? "📷 Imagen" : "");
-                  
-                  try {
-                    new Notification(`${msg.from} (Grupo: ${group.name})`, {
-                      body: messageText,
-                      icon: sender?.photoURL || '/default-avatar.png'
-                    });
-                  } catch (error) {
-                    console.error("Error al mostrar notificación:", error);
+            // Si el usuario ha habilitado notificaciones y la página no está enfocada o no estamos en el chat del grupo
+            if (NotificationService.isEnabled() && (!isPageVisible || currentPath !== groupPath)) {
+              const messageText = data.text || (data.image ? "📷 Imagen" : "");
+              NotificationService.showNotification(
+                `${data.from} en ${group.name}`,
+                {
+                  body: messageText,
+                  icon: data.photoURL || '/default-group.png', // Reemplaza con tu icono de grupo por defecto
+                  onClick: function() {
+                    window.focus();
+                    navigate(`/chat/group/${groupId}`);
+                    this.close();
                   }
                 }
-              } catch (error) {
-                console.error("Error al procesar mensaje:", error);
-              }
+              );
             }
-          });
+
+            lastSeen[groupId] = msgId;
+            localStorage.setItem(notifKey, JSON.stringify(lastSeen));
+          }
         });
 
-        return () => unsubs.forEach(unsub => unsub());
-      } catch (error) {
-        console.error("Error al configurar listeners:", error);
-      }
-    };
+        unsubMessageListeners.set(groupId, unsub);
+      });
+      
+      unsubMessageListeners.forEach((unsub, id) => {
+        if (!currentGroupIds.has(id)) {
+          unsub();
+          unsubMessageListeners.delete(id);
+        }
+      });
+    });
 
-    fetchGroups();
-  }, [userData, showToast, location.pathname]); 
+    return () => {
+      unsubGroups();
+      unsubMessageListeners.forEach((unsub) => unsub());
+    };
+  }, [userData, showToast, location.pathname, navigate]); 
 
   return null;
 }
