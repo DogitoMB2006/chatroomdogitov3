@@ -6,7 +6,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { storage } from "../firebase/config"; 
 import { useNavigate } from "react-router-dom";
-import { MdArrowBack, MdPhoto, MdCrop } from "react-icons/md";
+import { MdArrowBack, MdPhoto, MdLink, MdCrop, MdClose } from "react-icons/md";
 
 // Helper function to crop image
 const getCroppedImg = (imageSrc, pixelCrop) => {
@@ -50,6 +50,46 @@ const getCroppedImg = (imageSrc, pixelCrop) => {
   });
 };
 
+// Función para validar URL de imagen
+const isValidImageUrl = (url) => {
+  // URL válida básica
+  const urlPattern = /^(https?:\/\/)/i;
+  
+  // Extensiones de archivo comunes para imágenes/gifs
+  const imageExtensions = /\.(jpg|jpeg|png|gif|webp|svg)$/i;
+  
+  // Dominios comunes de imágenes
+  const imageHosts = [
+    'imgur.com',
+    'i.imgur.com',
+    'giphy.com',
+    'media.giphy.com',
+    'tenor.com',
+    'c.tenor.com',
+    'gfycat.com',
+    'thumbs.gfycat.com',
+    'media1.tenor.com',
+    'media2.tenor.com',
+    'media3.tenor.com',
+    'media4.tenor.com',
+    'media5.tenor.com',
+    'media.tenor.com',
+    'i.pinimg.com',
+    'i.gifer.com',
+    'media.discordapp.net',
+    'cdn.discordapp.com'
+  ];
+  
+  // Comprobar patrón URL
+  if (!urlPattern.test(url)) return false;
+  
+  // Comprobar extensión de archivo
+  if (imageExtensions.test(url)) return true;
+  
+  // Comprobar dominios conocidos de imágenes
+  return imageHosts.some(host => url.includes(host));
+};
+
 export default function EditProfile() {
   const { user, userData } = useContext(AuthContext);
   const [imageFile, setImageFile] = useState(null);
@@ -57,6 +97,10 @@ export default function EditProfile() {
   const [previewURL, setPreviewURL] = useState(userData?.photoURL || null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('local'); // 'local' o 'url'
+  const [imageUrl, setImageUrl] = useState('');
+  const [urlError, setUrlError] = useState('');
+  const [isGif, setIsGif] = useState(false);
 
   // Crop states
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -74,8 +118,59 @@ export default function EditProfile() {
       setOriginalPreviewURL(reader.result);
       setPreviewURL(reader.result);
       setShowCropper(true);
+      setIsGif(false);
     };
     setImageFile(file);
+  };
+
+  const handleUrlChange = (e) => {
+    setImageUrl(e.target.value);
+    setUrlError('');
+  };
+
+  const handleCheckUrl = async () => {
+    // Validar formato básico de URL
+    if (!isValidImageUrl(imageUrl)) {
+      setUrlError('La URL no parece ser una imagen válida');
+      return;
+    }
+
+    setLoading(true);
+    
+    try {
+      // Verificar si la URL es accesible
+      const response = await fetch(imageUrl, { method: 'HEAD' });
+      
+      if (!response.ok) {
+        setUrlError('No se pudo acceder a la imagen. Verifica la URL.');
+        setLoading(false);
+        return;
+      }
+
+      // Verificar si es un GIF (por la extensión o el Content-Type)
+      const contentType = response.headers.get('Content-Type');
+      const isGifImage = 
+        imageUrl.toLowerCase().endsWith('.gif') || 
+        (contentType && contentType.includes('image/gif'));
+      
+      setIsGif(isGifImage);
+      
+      // Para GIFs no necesitamos recortar
+      if (isGifImage) {
+        setPreviewURL(imageUrl);
+        setOriginalPreviewURL(imageUrl);
+      } else {
+        // Para imágenes regulares, permitir recorte
+        setOriginalPreviewURL(imageUrl);
+        setPreviewURL(imageUrl);
+        setShowCropper(true);
+      }
+      
+    } catch (error) {
+      setUrlError('Error al verificar la imagen: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const onCropComplete = useCallback((croppedArea, croppedAreaPixels) => {
@@ -103,24 +198,32 @@ export default function EditProfile() {
     setLoading(true);
 
     try {
-      // Fetch the cropped image blob
-      const response = await fetch(previewURL);
-      const blob = await response.blob();
+      let finalPhotoUrl;
 
-      // Upload to Firebase
-      const storageRef = ref(storage, `profileImages/${user.uid}`);
-      await uploadBytes(storageRef, blob);
-      const url = await getDownloadURL(storageRef);
+      // Si estamos usando una URL (y especialmente si es un GIF)
+      if (activeTab === 'url') {
+        // Guardar directamente la URL externa
+        finalPhotoUrl = previewURL;
+      } else {
+        // Subida normal a Firebase Storage
+        const response = await fetch(previewURL);
+        const blob = await response.blob();
+
+        // Upload to Firebase
+        const storageRef = ref(storage, `profileImages/${user.uid}`);
+        await uploadBytes(storageRef, blob);
+        finalPhotoUrl = await getDownloadURL(storageRef);
+      }
 
       // Update user document
       await updateDoc(doc(db, "users", user.uid), {
-        photoURL: url
+        photoURL: finalPhotoUrl
       });
 
       alert("Foto actualizada correctamente");
       navigate("/chat");
     } catch (error) {
-      alert("Error al subir imagen: " + error.message);
+      alert("Error al actualizar imagen: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -193,9 +296,10 @@ export default function EditProfile() {
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center p-6">
-        <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-lg w-full max-w-md text-center">
-          <h2 className="text-xl font-bold mb-6 text-gray-100">Actualizar foto de perfil</h2>
+        <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-lg w-full max-w-md">
+          <h2 className="text-xl font-bold mb-6 text-gray-100 text-center">Actualizar foto de perfil</h2>
 
+          {/* Preview de la imagen */}
           <div className="relative w-40 h-40 mx-auto rounded-full bg-gray-700 mb-6 overflow-hidden group">
             {previewURL ? (
               <img src={previewURL} alt="preview" className="w-full h-full object-cover" />
@@ -205,31 +309,116 @@ export default function EditProfile() {
               </div>
             )}
             
-            <div 
-              className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-              onClick={() => document.getElementById("fileInput").click()}
-            >
-              <div className="flex flex-col items-center">
-                <MdPhoto size={32} className="text-white mb-2" />
-                <span className="text-sm text-white">Cambiar foto</span>
-              </div>
-            </div>
+            {previewURL && (
+              <button 
+                onClick={() => {
+                  setPreviewURL(null);
+                  setOriginalPreviewURL(null);
+                  setImageFile(null);
+                  setImageUrl('');
+                  setIsGif(false);
+                }}
+                className="absolute top-2 right-2 bg-gray-900 bg-opacity-60 text-white p-1 rounded-full hover:bg-opacity-80 transition-all"
+              >
+                <MdClose size={16} />
+              </button>
+            )}
           </div>
 
-          <input
-            type="file"
-            id="fileInput"
-            accept="image/*"
-            className="hidden"
-            onChange={handleImageChange}
-          />
-
-          {imageFile && !showCropper && (
-            <div className="mb-4 text-sm text-gray-400">
-              Imagen seleccionada: {imageFile.name}
+          {/* Tabs para seleccionar el tipo de subida */}
+          <div className="mb-6">
+            <div className="flex border-b border-gray-700 mb-4">
+              <button
+                className={`flex-1 py-2 font-medium text-sm ${
+                  activeTab === 'local'
+                    ? 'text-indigo-400 border-b-2 border-indigo-400'
+                    : 'text-gray-400 hover:text-gray-300'
+                }`}
+                onClick={() => setActiveTab('local')}
+              >
+                <div className="flex items-center justify-center space-x-2">
+                  <MdPhoto size={18} />
+                  <span>Desde dispositivo</span>
+                </div>
+              </button>
+              <button
+                className={`flex-1 py-2 font-medium text-sm ${
+                  activeTab === 'url'
+                    ? 'text-indigo-400 border-b-2 border-indigo-400'
+                    : 'text-gray-400 hover:text-gray-300'
+                }`}
+                onClick={() => setActiveTab('url')}
+              >
+                <div className="flex items-center justify-center space-x-2">
+                  <MdLink size={18} />
+                  <span>Desde URL</span>
+                </div>
+              </button>
             </div>
-          )}
 
+            {/* Tab Content - Local File */}
+            {activeTab === 'local' && (
+              <div>
+                <button
+                  onClick={() => document.getElementById("fileInput").click()}
+                  className="w-full py-3 px-4 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-md flex items-center justify-center space-x-2 transition-colors"
+                >
+                  <MdPhoto size={20} />
+                  <span>Seleccionar imagen</span>
+                </button>
+                <input
+                  type="file"
+                  id="fileInput"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageChange}
+                />
+                {imageFile && (
+                  <div className="mt-2 text-sm text-gray-400 text-center">
+                    {imageFile.name}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab Content - URL */}
+            {activeTab === 'url' && (
+              <div>
+                <div className="flex space-x-2 mb-2">
+                  <input
+                    type="text"
+                    value={imageUrl}
+                    onChange={handleUrlChange}
+                    placeholder="Pega la URL de la imagen (incluso GIFs)"
+                    className="flex-1 px-3 py-2 bg-gray-700 text-gray-100 rounded-md border border-gray-600 focus:outline-none focus:border-indigo-500"
+                  />
+                  <button
+                    onClick={handleCheckUrl}
+                    disabled={!imageUrl.trim() || loading}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {loading ? 'Cargando...' : 'Verificar'}
+                  </button>
+                </div>
+                {urlError && (
+                  <div className="text-red-400 text-sm mt-1">
+                    {urlError}
+                  </div>
+                )}
+                {isGif && previewURL && (
+                  <div className="mt-2 text-center text-green-400 text-sm font-medium">
+                    ¡GIF detectado! Se usará sin recorte.
+                  </div>
+                )}
+                <div className="mt-2 text-xs text-gray-400">
+                  <p>Puedes usar URLs de Giphy, Tenor, Imgur, Discord, etc.</p>
+                  <p>Los GIFs animados solo funcionan por URL.</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Botones de acción */}
           <div className="flex flex-col gap-3">
             <button
               onClick={handleUpload}
@@ -242,9 +431,9 @@ export default function EditProfile() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Subiendo...
+                  Actualizando...
                 </span>
-              ) : "Actualizar imagen"}
+              ) : "Guardar foto de perfil"}
             </button>
             
             <button
@@ -257,8 +446,8 @@ export default function EditProfile() {
         </div>
         
         <div className="mt-6 text-gray-400 text-sm text-center">
-          <p>Esta imagen te representará en chats y grupos.</p>
-          <p>Ajusta el zoom y posición para obtener el encuadre perfecto.</p>
+          <p>Elige entre subir una imagen o usar una URL externa.</p>
+          <p>Los GIFs animados solo están disponibles usando URLs.</p>
         </div>
       </div>
     </div>
