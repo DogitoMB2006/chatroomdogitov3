@@ -34,11 +34,12 @@ import {
   MdKeyboardArrowDown
 } from "react-icons/md";
 import GroupSettings from "./GroupSettings";
-import GroupMute from "./GroupMute"; // Importamos el nuevo componente
+import GroupMute from "./GroupMute";
 import Staff from "../components/Staff";
 import ViewProfile from "./ViewProfile";
 import ViewGroupMembers from "./ViewGroupMembers";
 import GroupMessageInput from "./messages/GroupMessageInput";
+import "./GroupChat.css"; 
 export default function GroupChat() {
   const { groupId } = useParams();
   const { userData } = useContext(AuthContext);
@@ -58,6 +59,8 @@ export default function GroupChat() {
   const [viewingMembers, setViewingMembers] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [newMessageCount, setNewMessageCount] = useState(0);
+  const lastMessageCountRef = useRef(0); // Para trackear cambios
 
   const isAdmin = groupInfo?.admin === userData?.username;
 
@@ -89,12 +92,27 @@ export default function GroupChat() {
     const unsub = onSnapshot(q, (snap) => {
       const msgs = [];
       snap.forEach((doc) => msgs.push({ id: doc.id, ...doc.data() }));
-      setMessages(msgs);
       
-      // Scroll to bottom if user was already at bottom or if message is from user
-      if (isAtBottom || (msgs.length > 0 && msgs[msgs.length - 1].from === userData.username)) {
-        scrollToBottom();
+      // Verificar si hay nuevos mensajes
+      if (msgs.length > lastMessageCountRef.current) {
+        const isNewMessageFromUser = msgs.length > 0 && 
+                                     msgs[msgs.length - 1].from === userData.username;
+        
+        // Si no estamos al final y no es nuestro mensaje, incrementar contador
+        if (!isAtBottom && !isNewMessageFromUser) {
+          setNewMessageCount(prev => prev + (msgs.length - lastMessageCountRef.current));
+        }
+        
+        // Si estamos al final o es nuestro mensaje, hacer scroll
+        if (isAtBottom || isNewMessageFromUser) {
+          scrollToBottom();
+        }
       }
+      
+      // Actualizar referencia
+      lastMessageCountRef.current = msgs.length;
+      
+      setMessages(msgs);
     });
 
     return () => unsub();
@@ -113,6 +131,11 @@ export default function GroupChat() {
     
     // Mostrar/ocultar botón de scroll
     setShowScrollButton(!atBottom);
+    
+    // Si llegamos al final, resetear contador de nuevos mensajes
+    if (atBottom && newMessageCount > 0) {
+      setNewMessageCount(0);
+    }
   };
 
   // Añadir event listener para el scroll
@@ -127,6 +150,8 @@ export default function GroupChat() {
   const scrollToBottom = () => {
     setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      // Resetear contador cuando hacemos scroll manual
+      setNewMessageCount(0);
     }, 100);
   };
 
@@ -340,13 +365,15 @@ export default function GroupChat() {
           <div className="h-[calc(100vh-64px)] grid grid-rows-[1fr_auto]">
             {/* Mensajes - área scrollable */}
             <div 
-              ref={messagesContainerRef} 
-              className="overflow-y-auto p-2 sm:p-4 space-y-3"
-            >
-              {messages.length === 0 ? (
-                <div className="text-center text-gray-500 py-10">
-                  No hay mensajes aún. ¡Sé el primero en escribir!
-                </div>
+  ref={messagesContainerRef} 
+  className="overflow-y-auto p-2 sm:p-4 space-y-3 messages-container subtle-scrollbar"
+  onScroll={handleScroll}
+  id="messagesContainer"
+>
+{messages.length === 0 ? (
+    <div className="text-center text-gray-500 py-10">
+      No hay mensajes aún. ¡Sé el primero en escribir!
+    </div>
               ) : (
                 messages.map((msg) => {
                   const isMine = msg.from === userData.username;
@@ -474,18 +501,27 @@ export default function GroupChat() {
               )}
               {/* Elemento invisible para hacer scroll hasta el final */}
               <div ref={messagesEndRef}></div>
-            </div>
+</div>
+
 
             {/* Botón para ir al final cuando hay muchos mensajes */}
             {showScrollButton && (
-              <button
-                onClick={scrollToBottom}
-                className="fixed bottom-28 right-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-2 shadow-lg z-10 flex items-center"
-                aria-label="Ir al final"
-              >
-                <MdKeyboardArrowDown size={24} />
-              </button>
-            )}
+  <button
+    onClick={() => {
+      scrollToBottom();
+      setNewMessageCount(0);
+    }}
+    className="fixed bottom-28 right-4 scroll-button p-2 flex items-center justify-center"
+    aria-label="Ir al final"
+  >
+    <MdKeyboardArrowDown size={24} />
+    {newMessageCount > 0 && (
+      <span className="new-message-indicator">
+        {newMessageCount}
+      </span>
+    )}
+  </button>
+)}
 
             {/* Barra inferior fija con el área de respuesta y entrada de mensaje */}
             <div className="bg-gray-900 border-t border-gray-800 shadow-lg">
@@ -507,32 +543,29 @@ export default function GroupChat() {
                 </div>
               )}
 
-              
-              
               <input
-  type="file"
-  ref={fileInputRef}
-  accept="image/*"
-  onChange={handleFileChange}
-  className="hidden"
-/>
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                onChange={handleFileChange}
+                className="hidden"
+              />
 
-<GroupMessageInput 
-  text={text}
-  setText={setText}
-  handleSend={handleSend}
-  image={image}
-  setImage={setImage}
-  handleImageClick={handleImageClick}
-  fileInputRef={fileInputRef}
-  kickedOut={kickedOut}
-  handleKeyDown={handleKeyDown}
-  handleSendGif={handleSendGif}
-/>
-              </div>
+              <GroupMessageInput 
+                text={text}
+                setText={setText}
+                handleSend={handleSend}
+                image={image}
+                setImage={setImage}
+                handleImageClick={handleImageClick}
+                fileInputRef={fileInputRef}
+                kickedOut={kickedOut}
+                handleKeyDown={handleKeyDown}
+                handleSendGif={handleSendGif}
+              />
             </div>
           </div>
-      
+        </div>
       )}
     </div>
   );

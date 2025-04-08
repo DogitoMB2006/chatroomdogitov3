@@ -1,0 +1,83 @@
+/* GroupChat.css - Estilos específicos para el componente GroupChat */
+
+/* Estilos para los scrollbars del contenedor de mensajes */
+#messagesContainer::-webkit-scrollbar,
+.messages-container::-webkit-scrollbar {
+  width: 6px;               /* scrollbar más delgado para el chat */
+  height: 6px;
+}
+
+#messagesContainer::-webkit-scrollbar-track,
+.messages-container::-webkit-scrollbar-track {
+  background: rgba(26, 32, 44, 0.4);    /* color de fondo oscuro del track */
+  border-radius: 4px;
+}
+
+#messagesContainer::-webkit-scrollbar-thumb,
+.messages-container::-webkit-scrollbar-thumb {
+  background: rgba(79, 70, 229, 0.5);   /* color indigo semitransparente */
+  border-radius: 4px;
+  transition: background 0.3s;
+}
+
+#messagesContainer::-webkit-scrollbar-thumb:hover,
+.messages-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.8);  /* más visible al hacer hover */
+}
+
+/* Soporte para Firefox */
+#messagesContainer,
+.messages-container {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(79, 70, 229, 0.5) rgba(26, 32, 44, 0.4);
+}
+
+/* Hacer que los scrollbars sean más sutiles cuando no se está haciendo hover */
+.subtle-scrollbar::-webkit-scrollbar-thumb {
+  opacity: 0.3;
+  background: rgba(79, 70, 229, 0.3);
+}
+
+.subtle-scrollbar:hover::-webkit-scrollbar-thumb {
+  opacity: 1;
+  background: rgba(79, 70, 229, 0.5);
+}
+
+/* Estilo para el botón de scroll hacia abajo */
+.scroll-button {
+  background-color: #4f46e5;
+  color: white;
+  border-radius: 9999px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  z-index: 10;
+  transition: all 0.2s ease;
+}
+
+.scroll-button:hover {
+  background-color: #4338ca;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.scroll-button:active {
+  transform: translateY(0);
+}
+
+/* Indicador de nuevos mensajes */
+.new-message-indicator {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background-color: #ef4444;
+  color: white;
+  border-radius: 9999px;
+  min-width: 20px;
+  height: 20px;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border: 2px solid #0f172a;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
