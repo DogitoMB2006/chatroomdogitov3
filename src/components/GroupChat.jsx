@@ -34,10 +34,11 @@ import {
   MdKeyboardArrowDown
 } from "react-icons/md";
 import GroupSettings from "./GroupSettings";
+import GroupMute from "./GroupMute"; // Importamos el nuevo componente
 import Staff from "../components/Staff";
 import ViewProfile from "./ViewProfile";
 import ViewGroupMembers from "./ViewGroupMembers";
-
+import GroupMessageInput from "./messages/GroupMessageInput";
 export default function GroupChat() {
   const { groupId } = useParams();
   const { userData } = useContext(AuthContext);
@@ -154,15 +155,15 @@ export default function GroupChat() {
 
   const handleSend = async () => {
     if (!text.trim() && !image) return;
-
+  
     let imageUrl = null;
-
+  
     if (image) {
       const imageRef = ref(storage, `groupImages/${groupId}/${Date.now()}-${image.name}`);
       await uploadBytes(imageRef, image);
       imageUrl = await getDownloadURL(imageRef);
     }
-
+  
     await addDoc(collection(db, "groupMessages", groupId, "messages"), {
       from: userData.username,
       text: text.trim(),
@@ -170,12 +171,25 @@ export default function GroupChat() {
       timestamp: serverTimestamp(),
       replyTo: replyTo ? { from: replyTo.from, text: replyTo.text } : null
     });
-
+  
     setText("");
     setImage(null);
     setReplyTo(null);
     scrollToBottom();
   };
+  
+  const handleSendGif = async (gifUrl) => {
+    await addDoc(collection(db, "groupMessages", groupId, "messages"), {
+      from: userData.username,
+      text: "",
+      image: gifUrl, // enviamos el gif como imagen directamente
+      timestamp: serverTimestamp(),
+      replyTo: replyTo ? { from: replyTo.from, text: replyTo.text } : null
+    });
+  
+    scrollToBottom();
+  };
+  
 
   const handleDelete = async (msgId, imageUrl) => {
     const confirm = window.confirm("¿Eliminar este mensaje?");
@@ -281,6 +295,14 @@ export default function GroupChat() {
               </div>
               
               <div className="flex items-center">
+                {/* Añadimos el componente GroupMute aquí */}
+                {userData && (
+                  <GroupMute 
+                    groupId={groupId}
+                    userId={userData.username}
+                  />
+                )}
+                
                 <button
                   onClick={() => setViewingMembers(true)}
                   className="p-2 text-gray-400 hover:text-gray-200 hover:bg-gray-800 rounded-full mr-2"
@@ -485,79 +507,32 @@ export default function GroupChat() {
                 </div>
               )}
 
-              {/* Vista previa de imagen seleccionada */}
-              {image && (
-                <div className="mb-2 bg-gray-800 p-2 rounded mx-2 sm:mx-3 text-sm text-gray-300 flex justify-between items-center">
-                  <span className="truncate max-w-[180px] sm:max-w-none">
-                    Imagen: <strong className="text-gray-200">{image.name}</strong> 
-                    ({Math.round(image.size / 1024)} KB)
-                  </span>
-                  <button 
-                    onClick={() => setImage(null)}
-                    className="text-red-400 hover:text-red-300 ml-2"
-                  >
-                    <MdDelete />
-                  </button>
-                </div>
-              )}
               
-              {/* Área de entrada de mensaje */}
-              <div className="flex gap-1 sm:gap-2 items-center p-2 sm:p-3">
-                <div className="flex">
-                  <button
-                    onClick={handleImageClick}
-                    className="text-gray-400 hover:text-gray-200 p-1 sm:p-2 rounded-full hover:bg-gray-800"
-                    title="Adjuntar imagen"
-                  >
-                    <MdImage size={20} />
-                  </button>
-                  <button
-                    className="text-gray-400 hover:text-gray-200 p-1 sm:p-2 rounded-full hover:bg-gray-800"
-                    title="Insertar emoji"
-                  >
-                    <MdEmojiEmotions size={20} />
-                  </button>
-                  <button
-                    className="text-gray-400 hover:text-gray-200 p-1 sm:p-2 rounded-full hover:bg-gray-800 hidden sm:block"
-                    title="Añadir GIF"
-                  >
-                    <MdGif size={20} />
-                  </button>
-                </div>
-                
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-                
-                <textarea
-                  type="text"
-                  placeholder="Escribe un mensaje..."
-                  className="flex-1 bg-gray-800 text-gray-100 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-600 min-h-[40px] max-h-24 text-sm sm:text-base"
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={kickedOut}
-                  rows={1}
-                />
-                <button
-                  onClick={handleSend}
-                  disabled={(!text.trim() && !image) || kickedOut}
-                  className={`p-1 sm:p-2 rounded-full ${
-                    (!text.trim() && !image) || kickedOut
-                      ? "bg-gray-800 text-gray-500 cursor-not-allowed"
-                      : "bg-indigo-700 hover:bg-indigo-800 text-white"
-                  }`}
-                >
-                  <MdSend size={20} />
-                </button>
+              
+              <input
+  type="file"
+  ref={fileInputRef}
+  accept="image/*"
+  onChange={handleFileChange}
+  className="hidden"
+/>
+
+<GroupMessageInput 
+  text={text}
+  setText={setText}
+  handleSend={handleSend}
+  image={image}
+  setImage={setImage}
+  handleImageClick={handleImageClick}
+  fileInputRef={fileInputRef}
+  kickedOut={kickedOut}
+  handleKeyDown={handleKeyDown}
+  handleSendGif={handleSendGif}
+/>
               </div>
             </div>
           </div>
-        </div>
+      
       )}
     </div>
   );

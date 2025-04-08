@@ -12,6 +12,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.2",
     "date-fns": "^4.1.0",
+    "emoji.json": "^15.1.0",
     "firebase": "^11.6.0",
     "peerjs": "^1.5.4",
     "react": "^19.0.0",

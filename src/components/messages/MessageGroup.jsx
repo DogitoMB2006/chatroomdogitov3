@@ -17,18 +17,24 @@ export default function MessageGroup({
   const handleDelete = async (msg) => {
     const confirm = window.confirm("¿Eliminar este mensaje?");
     if (!confirm) return;
-
+  
     try {
       if (msg.image) {
-        const imagePath = decodeURIComponent(new URL(msg.image).pathname.split("/o/")[1]);
-        const imageRef = ref(storage, imagePath);
-        await deleteObject(imageRef);
+        const isGifFromTenor = msg.image.includes("tenor.com");
+  
+        if (!isGifFromTenor) {
+          const imagePath = decodeURIComponent(new URL(msg.image).pathname.split("/o/")[1]);
+          const imageRef = ref(storage, imagePath);
+          await deleteObject(imageRef);
+        }
       }
+  
       await deleteDoc(doc(db, "messages", msg.id));
     } catch (err) {
       alert("Error al eliminar mensaje: " + err.message);
     }
   };
+  
 
   // El manejo de hashtags se ha movido al componente MessageContent
 

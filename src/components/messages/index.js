@@ -10,3 +10,6 @@ export { default as BlockedBanner } from './BlockedBanner';
 export { default as BlockedMessageInput } from './BlockedMessageInput';
 export { default as CantSendMessage } from './CantSendMessage';
 export { default as ImagePreview } from '../common/ImagePreview';
+export { default as EmojiSelector } from './EmojiSelector';
+export { default as GroupMessageInput } from './GroupMessageInput';
+export { default as GifSelector } from './GifSelector';
