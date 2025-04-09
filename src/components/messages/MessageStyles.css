@@ -1,0 +1,129 @@
+/* MessageStyles.css - Estilos específicos para mensajes en móvil */
+
+/* Ajustes generales para móvil */
+@media (max-width: 640px) {
+    /* Reducir espacio entre mensajes */
+    .message-group-container {
+      margin-bottom: 0.5rem;
+    }
+    
+    /* Hacer los mensajes más anchos en móvil */
+    .message-content {
+      max-width: 90% !important;
+    }
+    
+    /* Ajustar los mensajes propios a la derecha */
+    .my-message {
+      margin-left: auto;
+    }
+    
+    /* Ajustar burbujas */
+    .message-bubble {
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.875rem;
+      margin-bottom: 0.25rem;
+    }
+  
+    /* Reducir espaciado entre grupos de mensajes */
+    .messages-container > div {
+      margin-bottom: 0.35rem;
+    }
+    
+    /* Hacer que los avatares sean más pequeños en móvil */
+    .avatar-mobile {
+      width: 1.75rem !important;
+      height: 1.75rem !important;
+      margin-top: 0.25rem;
+    }
+    
+    /* Mejorar visibilidad de las horas */
+    .message-time {
+      font-size: 0.65rem !important;
+      opacity: 0.7;
+    }
+    
+    /* Reducir margen superior en nombres de usuario */
+    .username-label {
+      margin-bottom: 0.2rem !important;
+      font-size: 0.75rem;
+    }
+    
+    /* Hacer que los botones de acción sean más visibles en móvil */
+    .message-actions-mobile {
+      opacity: 1 !important;
+      display: flex !important;
+      position: absolute;
+      right: 0.5rem;
+      top: 0.5rem;
+    }
+    
+    /* Ajustar estilos de texto de mensaje para móvil */
+    .message-text {
+      font-size: 0.9375rem;
+      line-height: 1.25rem;
+    }
+    
+    /* Mejorar aspecto de las respuestas (replies) */
+    .reply-preview {
+      font-size: 0.75rem !important;
+      padding: 0.25rem 0.5rem !important;
+      margin-bottom: 0.25rem !important;
+    }
+  }
+  
+  /* Estilo para mostrar acciones siempre en dispositivos táctiles */
+  @media (hover: none) {
+    .message-actions {
+      opacity: 1 !important;
+    }
+  }
+  
+  /* Arreglar los márgenes de las burbujas consecutivas */
+  .message-consecutive {
+    margin-top: 0.15rem !important;
+  }
+  
+  .message-group {
+    margin-bottom: 0.75rem;
+  }
+  
+  .message-first {
+    border-bottom-right-radius: 0.25rem !important;
+    border-bottom-left-radius: 0.25rem !important;
+  }
+  
+  .message-middle {
+    border-radius: 0.25rem !important;
+  }
+  
+  .message-last {
+    border-top-right-radius: 0.25rem !important;
+    border-top-left-radius: 0.25rem !important;
+  }
+  
+  /* Separar visualmente los grupos de mensajes */
+  .message-day-divider {
+    margin: 1rem 0;
+    text-align: center;
+    position: relative;
+  }
+  
+  .message-day-divider::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 1px;
+    background: rgba(107, 114, 128, 0.2);
+    z-index: 1;
+  }
+  
+  .message-day-divider span {
+    background: #111827;
+    padding: 0 10px;
+    position: relative;
+    z-index: 2;
+    font-size: 0.75rem;
+    color: #9ca3af;
+  }

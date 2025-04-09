@@ -91,7 +91,7 @@ export default function MessageContent({
 
   return (
     <div
-      className={`px-3 py-2 rounded-lg relative ${
+      className={`px-3 py-2 rounded-lg relative message-text ${
         isMine 
           ? `bg-indigo-600 text-white ${isFirstInGroup ? 'rounded-tr-none' : ''} ${isLastInGroup ? 'rounded-br-none' : ''}`
           : `bg-gray-700 text-gray-100 ${isFirstInGroup ? 'rounded-tl-none' : ''} ${isLastInGroup ? 'rounded-bl-none' : ''}`
@@ -99,7 +99,7 @@ export default function MessageContent({
     >
       {/* Mensaje al que responde */}
       {message.replyTo && (
-        <div className="text-xs border-l-2 pl-2 mb-2 opacity-75 rounded py-1 bg-black bg-opacity-20">
+        <div className="text-xs border-l-2 pl-2 mb-2 opacity-75 rounded py-1 bg-black bg-opacity-20 reply-preview">
           <span className="font-medium">{message.replyTo.from}</span>
           <Staff username={message.replyTo.from} className="w-3 h-3" />
           <span>: "{message.replyTo.text}"</span>
@@ -126,7 +126,7 @@ export default function MessageContent({
       )}
 
       {/* Hora */}
-      <span className="block text-[10px] mt-1 text-right opacity-70">
+      <span className="block text-[10px] mt-1 text-right opacity-70 message-time">
         {message.timestamp?.toDate ? format(message.timestamp.toDate(), 'p') : '...'}
       </span>
     </div>

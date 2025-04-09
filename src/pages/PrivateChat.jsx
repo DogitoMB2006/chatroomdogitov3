@@ -22,9 +22,12 @@ import {
   MdCall,
   MdVideocam,
   MdClose,
-  MdBlock
+  MdBlock,
+  MdMenu,
+  MdOutlineMoreVert
 } from "react-icons/md";
 import { listenToUserStatus } from "../utils/onlineStatus";
+import "../components/messages/MessageStyles.css";
 
 export default function PrivateChat() {
   const { username } = useParams();
@@ -36,6 +39,7 @@ export default function PrivateChat() {
   const [isBlocked, setIsBlocked] = useState(false);
   const [hasBlockedMe, setHasBlockedMe] = useState(false);
   const [showCall, setShowCall] = useState(null); // "audio" o "video"
+  const [showMobileActions, setShowMobileActions] = useState(false);
   
   const isAnyBlockActive = isBlocked || hasBlockedMe;
 
@@ -162,9 +166,15 @@ export default function PrivateChat() {
       
       console.log(`Iniciando llamada de ${type} con ${username}`);
       setShowCall(type);
+      setShowMobileActions(false); // Cerrar el menú móvil si está abierto
     } catch (error) {
       console.error("Error al iniciar llamada:", error);
     }
+  };
+
+  // Alternar menú de acciones en móvil
+  const toggleMobileActions = () => {
+    setShowMobileActions(!showMobileActions);
   };
 
   return (
@@ -194,7 +204,7 @@ export default function PrivateChat() {
             </div>
 
             <div>
-              <h2 className="font-medium text-gray-100 truncate max-w-[150px] flex items-center">
+              <h2 className="font-medium text-gray-100 truncate max-w-[150px] sm:max-w-xs flex items-center">
                 {username}
                 {isBlocked && <span className="ml-2 text-xs bg-red-500 text-white px-1 py-0.5 rounded">Bloqueado</span>}
                 {hasBlockedMe && <span className="ml-2 text-xs bg-gray-500 text-white px-1 py-0.5 rounded">Te bloqueó</span>}
@@ -206,27 +216,73 @@ export default function PrivateChat() {
           </div>
         </div>
 
-        <div className="flex items-center space-x-1">
-          <button
-            onClick={() => startCall("audio")}
-            className={`text-gray-400 p-2 rounded-full ${isAnyBlockActive ? "opacity-50 cursor-not-allowed" : "hover:text-white hover:bg-gray-700"} hidden sm:block`}
-            disabled={isAnyBlockActive}
-          >
-            <MdCall size={22} />
-          </button>
-          <button
-            onClick={() => startCall("video")}
-            className={`text-gray-400 p-2 rounded-full ${isAnyBlockActive ? "opacity-50 cursor-not-allowed" : "hover:text-white hover:bg-gray-700"} hidden sm:block`}
-            disabled={isAnyBlockActive}
-          >
-            <MdVideocam size={22} />
-          </button>
-          <button
-            onClick={toggleUserInfo}
-            className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700"
-          >
-            <MdMoreVert size={22} />
-          </button>
+        <div className="flex items-center">
+          {/* Botones para dispositivos grandes */}
+          <div className="hidden sm:flex items-center space-x-1">
+            <button
+              onClick={() => startCall("audio")}
+              className={`text-gray-400 p-2 rounded-full ${isAnyBlockActive ? "opacity-50 cursor-not-allowed" : "hover:text-white hover:bg-gray-700"}`}
+              disabled={isAnyBlockActive}
+            >
+              <MdCall size={22} />
+            </button>
+            <button
+              onClick={() => startCall("video")}
+              className={`text-gray-400 p-2 rounded-full ${isAnyBlockActive ? "opacity-50 cursor-not-allowed" : "hover:text-white hover:bg-gray-700"}`}
+              disabled={isAnyBlockActive}
+            >
+              <MdVideocam size={22} />
+            </button>
+            <button
+              onClick={toggleUserInfo}
+              className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700"
+            >
+              <MdMoreVert size={22} />
+            </button>
+          </div>
+          
+          {/* Botón de acciones para móvil */}
+          <div className="sm:hidden">
+            <button
+              onClick={toggleMobileActions}
+              className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700"
+            >
+              <MdOutlineMoreVert size={24} />
+            </button>
+            
+            {/* Menú desplegable para móvil */}
+            {showMobileActions && (
+              <div className="absolute right-2 top-14 bg-gray-800 rounded-md shadow-lg z-20 border border-gray-700 w-48 py-1">
+                <button
+                  onClick={() => startCall("audio")}
+                  className={`w-full text-left px-4 py-2 flex items-center ${isAnyBlockActive ? "text-gray-500" : "text-gray-300 hover:bg-gray-700"}`}
+                  disabled={isAnyBlockActive}
+                >
+                  <MdCall className="mr-2" size={18} />
+                  Llamada de voz
+                </button>
+                <button
+                  onClick={() => startCall("video")}
+                  className={`w-full text-left px-4 py-2 flex items-center ${isAnyBlockActive ? "text-gray-500" : "text-gray-300 hover:bg-gray-700"}`}
+                  disabled={isAnyBlockActive}
+                >
+                  <MdVideocam className="mr-2" size={18} />
+                  Videollamada
+                </button>
+                <div className="border-t border-gray-700 my-1"></div>
+                <button
+                  onClick={() => {
+                    toggleUserInfo();
+                    setShowMobileActions(false);
+                  }}
+                  className="w-full text-left px-4 py-2 flex items-center text-gray-300 hover:bg-gray-700"
+                >
+                  <MdBlock className="mr-2" size={18} />
+                  {isBlocked ? "Desbloquear" : "Bloquear"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -253,9 +309,18 @@ export default function PrivateChat() {
 
         {/* Panel lateral de información del usuario */}
         {showUserInfo && (
-          <div className="absolute right-0 top-0 h-full w-64 bg-gray-800 shadow-lg transform transition-transform duration-300 ease-in-out">
+          <div className="absolute inset-0 z-20 sm:relative sm:inset-auto sm:right-0 sm:top-0 sm:h-full sm:w-64 bg-gray-800 shadow-lg">
             <div className="p-4">
-              <h3 className="text-lg font-medium mb-4">Opciones</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium">Opciones</h3>
+                <button
+                  onClick={toggleUserInfo}
+                  className="text-gray-400 hover:text-white p-1 rounded-full hover:bg-gray-700 sm:hidden"
+                >
+                  <MdClose size={20} />
+                </button>
+              </div>
+              
               <BlockUser
                 username={username}
                 isBlocked={isBlocked}

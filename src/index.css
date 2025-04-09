@@ -3,6 +3,8 @@
 @tailwind utilities;
 @import "tailwindcss";
 
+
+
 /* Configuración base para toda la aplicación */
 html, body {
   height: 100%;

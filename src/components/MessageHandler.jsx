@@ -33,12 +33,19 @@ export default function MessageHandler({ receiver, isBlocked }) {
   const [receiverData, setReceiverData] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const isMountedRef = useRef(true);
   const navigate = useNavigate();
   const [hasBlockedMe, setHasBlockedMe] = useState(false);
   const [iHaveBlocked, setIHaveBlocked] = useState(false);
   const [showCantSendMessage, setShowCantSendMessage] = useState(false);
   const [replyTo, setReplyTo] = useState(null);
+  const [scrollBehavior, setScrollBehavior] = useState("smooth");
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [newMessagesCount, setNewMessagesCount] = useState(0);
+  const [initialLoad, setInitialLoad] = useState(true);
+  const prevMessagesLengthRef = useRef(0);
 
   // Verificar el estado de bloqueo
   useEffect(() => {
@@ -74,6 +81,31 @@ export default function MessageHandler({ receiver, isBlocked }) {
     };
     getReceiverData();
   }, [receiver]);
+
+  // Detectar scroll y mostrar u ocultar botón para bajar
+  const handleScroll = () => {
+    if (!messagesContainerRef.current) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    const atBottom = scrollHeight - scrollTop - clientHeight < 50;
+    
+    setIsAtBottom(atBottom);
+    setShowScrollButton(!atBottom);
+    
+    // Resetear contador de mensajes nuevos si está al final
+    if (atBottom && newMessagesCount > 0) {
+      setNewMessagesCount(0);
+    }
+  };
+
+  // Añadir event listener para el scroll
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, []);
 
   useEffect(() => {
     const markMessagesAsRead = async () => {
@@ -151,21 +183,50 @@ export default function MessageHandler({ receiver, isBlocked }) {
         batch.commit().catch(err => console.error("Error al marcar mensajes como leídos:", err));
       }
       
-      scrollToBottom();
+      // Solo hacer scroll inicial cuando se cargan los mensajes por primera vez
+      if (initialLoad && filtered.length > 0) {
+        setTimeout(() => {
+          scrollToBottom("auto");
+          setInitialLoad(false);
+        }, 300);
+      } else if (filtered.length > prevMessagesLengthRef.current) {
+        // Si hay mensajes nuevos
+        const lastMsg = filtered[filtered.length - 1];
+        const isMyMessage = lastMsg && lastMsg.from === userData.username;
+        
+        // Solo scroll automático si es mi mensaje o estoy al final
+        if (isMyMessage || isAtBottom) {
+          scrollToBottom();
+        } else {
+          // Si no, incrementar contador de mensajes nuevos
+          setNewMessagesCount(prev => prev + 1);
+        }
+      }
+      
+      // Actualizar la referencia de la cantidad de mensajes
+      prevMessagesLengthRef.current = filtered.length;
     });
 
     return () => {
       unsub();
       isMountedRef.current = false;
     };
-  }, [userData, receiver, iHaveBlocked]);
+  }, [userData, receiver, iHaveBlocked, isAtBottom, initialLoad]);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = (behavior = scrollBehavior) => {
     setTimeout(() => {
       if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        messagesEndRef.current.scrollIntoView({ behavior });
+        setNewMessagesCount(0);
       }
     }, 100);
+  };
+
+  // Función para forzar scroll con animación suave
+  const scrollToBottomSmooth = () => {
+    setScrollBehavior('smooth');
+    scrollToBottom('smooth');
+    setTimeout(() => setScrollBehavior('auto'), 500);
   };
 
   // Agrupar mensajes por fecha
@@ -219,14 +280,15 @@ export default function MessageHandler({ receiver, isBlocked }) {
       )}
 
       {/* Área de mensajes */}
-      <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${isAnyBlockActive ? 'opacity-75' : ''}`}>
+      <div 
+        ref={messagesContainerRef}
+        className={`flex-1 overflow-y-auto p-4 space-y-4 messages-container ${isAnyBlockActive ? 'opacity-75' : ''}`}
+      >
         {Object.entries(messageGroups).map(([date, msgs]) => (
           <div key={date} className="space-y-2">
             {/* Divisor de fecha */}
-            <div className="flex items-center justify-center my-3">
-              <div className="bg-gray-700 text-gray-300 text-xs font-medium px-3 py-1 rounded-full">
-                {date}
-              </div>
+            <div className="message-day-divider">
+              <span>{date}</span>
             </div>
             
             {/* Mensajes del día */}
@@ -243,6 +305,24 @@ export default function MessageHandler({ receiver, isBlocked }) {
         ))}
         <div ref={messagesEndRef}></div>
       </div>
+
+      {/* Botón para ir al final cuando hay mensajes no leídos */}
+      {showScrollButton && (
+        <button
+          onClick={scrollToBottomSmooth}
+          className="fixed bottom-20 right-4 bg-indigo-600 text-white rounded-full p-3 shadow-lg z-10 flex items-center justify-center"
+          aria-label="Ir al final"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
+          {newMessagesCount > 0 && (
+            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+              {newMessagesCount}
+            </span>
+          )}
+        </button>
+      )}
 
       {/* Área de respuesta */}
       {replyTo && !isAnyBlockActive && (
