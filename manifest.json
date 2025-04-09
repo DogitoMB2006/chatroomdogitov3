@@ -1,0 +1,11 @@
+{
+  "name": "ChatRoom Dogito",
+  "theme_color": "#000000",
+  "background_color": "#000000",
+  "short_name": "DogitoChat",
+  "id": "com.dogito.chat",
+  "description": "App de chat con notificaciones en tiempo real",
+  "categories": [
+    "entertainment"
+  ]
+}
