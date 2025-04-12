@@ -252,7 +252,7 @@ export default function Home() {
                   <span className="text-gray-200 font-medium">Enlaces de descarga</span>
                 </div>
                 <a 
-                  href="https://github.com/DogitoMB2006/dogito-chatroomeletrcon/releases/download/v1.1.4/Dogito-Chat-Setup-1.1.4.exe"
+                  href="https://github.com/DogitoMB2006/dogito-chatroomeletrcon/releases/download/v1.3.2/Dogito-Chat-Setup-1.3.2.exe"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block mb-2 bg-indigo-600 text-white py-3 px-4 rounded-lg text-center hover:bg-indigo-700 transition-colors"
